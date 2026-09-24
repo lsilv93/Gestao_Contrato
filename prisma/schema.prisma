@@ -1,0 +1,233 @@
+// Gestão de Contratos, Licenças Sanitárias (ANVISA), Manuais de Boas Práticas
+// e Faturamento de transportadoras.
+//
+// Datas de vencimento usam @db.Date (sem hora): o farol compara o dia do
+// vencimento com o dia atual no fuso America/Sao_Paulo.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum Role {
+  ADMIN  // Consultoria: acesso total
+  CLIENT // Transportadora: somente leitura dos dados do próprio CNPJ
+}
+
+enum ContractType {
+  PJ
+  SPOT
+}
+
+enum ContractStatus {
+  ACTIVE     // Vigente
+  RENEWED    // Renovado (substituído por um novo contrato)
+  TERMINATED // Encerrado
+}
+
+// "Atrasado" não é gravado: é um PENDING com vencimento anterior a hoje.
+enum FinancialStatus {
+  PENDING
+  PAID
+  CANCELED
+}
+
+// Ativa / Próxima de Vencer / Vencida são calculados a partir da validade de
+// uma licença CURRENT. As demais situações encerram a licença.
+enum LicenseStatus {
+  CURRENT    // Vigente
+  RENEWED    // Substituída por uma nova versão
+  SUSPENDED  // Suspensa
+  CANCELED   // Cancelada
+}
+
+enum ManualCategory {
+  MANUAL_BPA // Manual de Boas Práticas
+  POP        // Procedimento Operacional Padrão
+  OTHER
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(CLIENT)
+  /// CNPJ vinculado: obrigatório para CLIENT, opcional para ADMIN.
+  carrierCnpj  String?
+  carrier      Carrier? @relation(fields: [carrierCnpj], references: [cnpj], onUpdate: Cascade, onDelete: Restrict)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  auditLogs     AuditLog[]
+  uploadedFiles StoredFile[]
+
+  @@index([carrierCnpj])
+  @@map("users")
+}
+
+model Carrier {
+  id           String  @id @default(cuid())
+  /// CNPJ normalizado (14 caracteres, sem pontuação). Chave de filtro do RBAC.
+  cnpj         String  @unique
+  legalName    String
+  tradeName    String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  zipCode      String?
+  street       String?
+  number       String?
+  complement   String?
+  district     String?
+  city         String?
+  state        String? @db.Char(2)
+  active       Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  users     User[]
+  contracts Contract[]
+  services  FinancialService[]
+  licenses  SanitaryLicense[]
+  manuals   GoodPracticesManual[]
+
+  @@map("carriers")
+}
+
+model Contract {
+  id             String         @id @default(cuid())
+  carrierId      String
+  carrier        Carrier        @relation(fields: [carrierId], references: [id], onDelete: Restrict)
+  contractType   ContractType
+  title          String
+  amount         Decimal        @default(0) @db.Decimal(14, 2)
+  startDate      DateTime?      @db.Date
+  expirationDate DateTime       @db.Date
+  status         ContractStatus @default(ACTIVE)
+  notes          String?
+  fileId         String?        @unique
+  file           StoredFile?    @relation("ContractFile", fields: [fileId], references: [id], onDelete: SetNull)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  services FinancialService[]
+
+  @@index([carrierId])
+  @@index([expirationDate])
+  @@map("contracts")
+}
+
+model FinancialService {
+  id            String          @id @default(cuid())
+  carrierId     String
+  carrier       Carrier         @relation(fields: [carrierId], references: [id], onDelete: Restrict)
+  contractId    String?
+  contract      Contract?       @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  contractType  ContractType
+  invoiceNumber String
+  description   String?
+  dueDate       DateTime        @db.Date
+  paymentDate   DateTime?       @db.Date
+  amount        Decimal         @db.Decimal(14, 2)
+  status        FinancialStatus @default(PENDING)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@unique([carrierId, invoiceNumber])
+  @@index([dueDate])
+  @@index([status])
+  @@map("financial_services")
+}
+
+model SanitaryLicense {
+  id             String        @id @default(cuid())
+  carrierId      String
+  carrier        Carrier       @relation(fields: [carrierId], references: [id], onDelete: Restrict)
+  licenseNumber  String
+  issuingBody    String?
+  issueDate      DateTime?     @db.Date
+  expirationDate DateTime      @db.Date
+  status         LicenseStatus @default(CURRENT)
+  version        Int           @default(1)
+  notes          String?
+  /// Versão anterior (histórico de renovações).
+  previousId     String?       @unique
+  previous       SanitaryLicense?  @relation("LicenseHistory", fields: [previousId], references: [id], onDelete: SetNull)
+  next           SanitaryLicense?  @relation("LicenseHistory")
+  fileId         String?       @unique
+  file           StoredFile?   @relation("LicenseFile", fields: [fileId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([carrierId])
+  @@index([expirationDate])
+  @@map("sanitary_licenses")
+}
+
+model GoodPracticesManual {
+  id         String         @id @default(cuid())
+  carrierId  String
+  carrier    Carrier        @relation(fields: [carrierId], references: [id], onDelete: Restrict)
+  title      String
+  category   ManualCategory @default(MANUAL_BPA)
+  version    String
+  /// Próxima revisão (usada pelo farol).
+  reviewDate DateTime?      @db.Date
+  notes      String?
+  fileId     String?        @unique
+  file       StoredFile?    @relation("ManualFile", fields: [fileId], references: [id], onDelete: SetNull)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([carrierId])
+  @@map("good_practices_manuals")
+}
+
+/// Arquivos (PDF/Word) guardados no próprio banco: o download passa pela API,
+/// que confere o CNPJ do usuário antes de entregar o arquivo.
+model StoredFile {
+  id           String   @id @default(cuid())
+  fileName     String
+  mimeType     String
+  size         Int
+  data         Bytes
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  contract Contract?            @relation("ContractFile")
+  license  SanitaryLicense?     @relation("LicenseFile")
+  manual   GoodPracticesManual? @relation("ManualFile")
+
+  @@map("stored_files")
+}
+
+/// Trilha de auditoria imutável (UPDATE/DELETE bloqueados por trigger no banco).
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userName   String?
+  action     AuditAction
+  entityName String
+  entityId   String?
+  timestamp  DateTime    @default(now())
+  details    Json?
+
+  @@index([entityName, entityId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}

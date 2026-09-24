@@ -1,0 +1,193 @@
+import Link from "next/link";
+import { CheckCircle2, History, Plus } from "lucide-react";
+import { excluirServico, marcarPago, salvarServico } from "@/actions/faturamento";
+import { BotaoEditar, BotaoExcluir } from "@/components/Acoes";
+import { Campo, Selecao, Voltar } from "@/components/Campos";
+import { FormFiltro } from "@/components/Filtros";
+import { FiltroTransportadora, opcoesSelect } from "@/components/FiltroTransportadora";
+import { FormAcao } from "@/components/FormAcao";
+import { LinhaClicavel } from "@/components/LinhaClicavel";
+import { Modal } from "@/components/Modal";
+import { BannerOk, Cabecalho, FarolBadge, LegendaFarol, Painel, StatusBadge, Tabela, Vazio } from "@/components/ui";
+import { textoPrazo } from "@/domain/farol";
+import { rotuloStatusFaturamento, statusFaturamento, type StatusFaturamento } from "@/domain/status";
+import { diaDe, diaLocal, formatarData } from "@/lib/datas";
+import { formatarCnpj, formatarMoeda } from "@/lib/formatos";
+import { urlCom } from "@/lib/url";
+import { ehAdmin, requireUsuario } from "@/server/auth";
+import { listarContratos } from "@/server/consultas/contratos";
+import { buscarServico, lerFiltroFaturamento, listarServicos } from "@/server/consultas/faturamento";
+import { nomeCarrier, param, type Params } from "@/server/consultas/filtros";
+import { opcoesTransportadoras } from "@/server/consultas/transportadoras";
+
+export const metadata = { title: "Serviços & Faturamento" };
+const BASE = "/faturamento";
+
+export default async function FaturamentoPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const usuario = await requireUsuario();
+  const admin = ehAdmin(usuario);
+  const sp = await searchParams;
+  const filtro = lerFiltroFaturamento(sp);
+  const editarId = admin ? param(sp, "editar") : undefined;
+  const pagarId = admin ? param(sp, "pagar") : undefined;
+  const novo = admin && param(sp, "novo") === "1";
+  const [lista, transportadoras, editando, pagando, contratos] = await Promise.all([
+    listarServicos(usuario, filtro),
+    admin ? opcoesTransportadoras() : [],
+    editarId ? buscarServico(usuario, editarId) : null,
+    pagarId ? buscarServico(usuario, pagarId) : null,
+    admin && (novo || editarId) ? listarContratos(usuario, { status: "ACTIVE" }) : [],
+  ]);
+  const aqui = urlCom(BASE, sp);
+
+  const somar = (s: StatusFaturamento) => lista.filter((x) => x.situacao === s).reduce((a, x) => a + x.amount, 0);
+  const statusOpcoes = (Object.keys(rotuloStatusFaturamento) as StatusFaturamento[]).map((valor) => ({ valor, rotulo: rotuloStatusFaturamento[valor] }));
+
+  return (
+    <>
+      <Cabecalho titulo="Serviços & Faturamento" descricao="Notas fiscais de serviço por transportadora. Clique numa NF pendente para dar baixa como paga.">
+        {admin && (
+          <Link href={urlCom(BASE, sp, { novo: "1" })} className="btn-primary" scroll={false}>
+            <Plus className="h-4 w-4" /> Lançar NF
+          </Link>
+        )}
+      </Cabecalho>
+      <BannerOk mensagem={param(sp, "ok")} />
+
+      <FormFiltro>
+        <Campo prefixo="filtro" nome="nf" rotulo="Número da NF" valor={filtro.nf} placeholder="Enter para buscar" />
+        <Selecao prefixo="filtro" nome="tipo" rotulo="Tipo de contrato" valor={filtro.tipo} vazio="Todos" opcoes={[{ valor: "PJ", rotulo: "PJ" }, { valor: "SPOT", rotulo: "SPOT" }]} />
+        {admin && <FiltroTransportadora opcoes={transportadoras} valor={filtro.carrierId} />}
+        <Selecao prefixo="filtro" nome="status" rotulo="Status" valor={filtro.status} vazio="Todos" opcoes={statusOpcoes} />
+      </FormFiltro>
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        {(["OVERDUE", "PENDING", "PAID"] as const).map((s) => (
+          <Link key={s} href={urlCom(BASE, sp, { status: filtro.status === s ? null : s })} className="card-sm flex items-center justify-between gap-3 p-5">
+            <StatusBadge status={s} rotulo={rotuloStatusFaturamento[s]} />
+            <span className="num text-[16px] font-semibold text-t1">{formatarMoeda(somar(s))}</span>
+          </Link>
+        ))}
+      </div>
+
+      <Painel titulo={`Notas fiscais (${lista.length})`}>
+        {lista.length === 0 ? (
+          <Vazio>Nenhuma NF encontrada com os filtros atuais.</Vazio>
+        ) : (
+          <Tabela>
+            <table className="tabela">
+              <thead>
+                <tr>
+                  <th>Farol</th>
+                  <th>NF</th>
+                  <th>Transportadora</th>
+                  <th>Tipo</th>
+                  <th>Vencimento</th>
+                  <th className="!text-right">Valor</th>
+                  <th>Pagamento</th>
+                  <th>Status</th>
+                  {admin && <th />}
+                </tr>
+              </thead>
+              <tbody>
+                {lista.map((s) => {
+                  const pendente = s.status === "PENDING";
+                  return (
+                    <LinhaClicavel key={s.id} href={admin && pendente ? urlCom(BASE, sp, { pagar: s.id }) : undefined} titulo="Clique para marcar como pago">
+                      <td><FarolBadge farol={s.farol} rotuloResolvido={rotuloStatusFaturamento[s.situacao]} /></td>
+                      <td>
+                        <p className="num font-semibold text-t1">{s.invoiceNumber}</p>
+                        {s.description && <p className="max-w-[220px] truncate text-[10px] text-t4" title={s.description}>{s.description}</p>}
+                      </td>
+                      <td>
+                        <p className="font-medium text-t1">{nomeCarrier(s.carrier)}</p>
+                        <p className="num text-[10px] text-t4">{formatarCnpj(s.carrier.cnpj)}</p>
+                      </td>
+                      <td><StatusBadge status={s.contractType} rotulo={s.contractType} /></td>
+                      <td>
+                        <p className="num">{formatarData(s.dueDate)}</p>
+                        {s.farol && <p className="text-[10px] text-t4">{textoPrazo(s.dueDate)}</p>}
+                      </td>
+                      <td className="num text-right text-t1">{formatarMoeda(s.amount)}</td>
+                      <td className="num">{formatarData(s.paymentDate)}</td>
+                      <td><StatusBadge status={s.situacao} rotulo={rotuloStatusFaturamento[s.situacao]} /></td>
+                      {admin && (
+                        <td>
+                          <div className="flex items-center justify-end gap-2">
+                            {pendente && (
+                              <Link href={urlCom(BASE, sp, { pagar: s.id })} className="btn-primary btn-sm" scroll={false}>
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Pago
+                              </Link>
+                            )}
+                            <BotaoEditar href={urlCom(BASE, sp, { editar: s.id })} />
+                            <Link href={`/auditoria?entidade=FinancialService&registro=${s.id}`} className="btn-secondary btn-sm" title="Trilha de auditoria">
+                              <History className="h-3.5 w-3.5" />
+                            </Link>
+                            <BotaoExcluir acao={excluirServico} id={s.id} voltar={aqui} descricao={`a NF ${s.invoiceNumber}`} />
+                          </div>
+                        </td>
+                      )}
+                    </LinhaClicavel>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Tabela>
+        )}
+        <LegendaFarol />
+      </Painel>
+
+      {pagando && (
+        <Modal titulo={`Marcar NF ${pagando.invoiceNumber} como paga`} descricao={`${nomeCarrier(pagando.carrier)} · vencimento ${formatarData(pagando.dueDate)} · ${formatarMoeda(pagando.amount)}`} fecharHref={aqui}>
+          {pagando.status === "PAID" ? (
+            <Vazio>Esta NF já está paga ({formatarData(pagando.paymentDate)}).</Vazio>
+          ) : (
+            <FormAcao acao={marcarPago} botao={<><CheckCircle2 className="h-4 w-4" /> Confirmar pagamento</>} classeBotao="btn-primary w-full" limpar={false} confirmar={`Confirmar a baixa da NF ${pagando.invoiceNumber} como PAGA?`}>
+              <input type="hidden" name="id" value={pagando.id} />
+              <Voltar href={aqui} />
+              <div className="poco p-4 text-[12px] text-t2">
+                Situação atual: <StatusBadge status={statusFaturamento(pagando)} rotulo={rotuloStatusFaturamento[statusFaturamento(pagando)]} />
+              </div>
+              <Campo nome="paymentDate" rotulo="Data do pagamento" type="date" valor={diaLocal()} max={diaLocal()} obrigatorio />
+            </FormAcao>
+          )}
+        </Modal>
+      )}
+
+      {(novo || editando) && (
+        <Modal titulo={editando ? `Editar NF ${editando.invoiceNumber}` : "Lançar NF de serviço"} fecharHref={aqui} largo>
+          <FormAcao acao={salvarServico} botao={editando ? "Salvar alterações" : "Lançar NF"} limpar={false} className="grid gap-4 sm:grid-cols-2">
+            {editando && <input type="hidden" name="id" value={editando.id} />}
+            <Voltar href={aqui} />
+            <Selecao nome="carrierId" rotulo="Transportadora" valor={editando?.carrierId ?? filtro.carrierId} obrigatorio vazio="Selecione..." opcoes={opcoesSelect(transportadoras)} className="sm:col-span-2" />
+            <Selecao
+              nome="contractId"
+              rotulo="Contrato vinculado (opcional)"
+              valor={editando?.contractId}
+              vazio="Sem vínculo"
+              opcoes={contratos.map((c) => ({ valor: c.id, rotulo: `${nomeCarrier(c.carrier)} — ${c.title} (${c.contractType})` }))}
+              className="sm:col-span-2"
+            />
+            <Selecao nome="contractType" rotulo="Tipo de contrato" valor={editando?.contractType ?? "PJ"} obrigatorio opcoes={[{ valor: "PJ", rotulo: "PJ" }, { valor: "SPOT", rotulo: "SPOT" }]} />
+            <Campo nome="invoiceNumber" rotulo="Número da NF" valor={editando?.invoiceNumber} obrigatorio maxLength={40} />
+            <Campo nome="description" rotulo="Descrição do serviço" valor={editando?.description} maxLength={500} className="sm:col-span-2" />
+            <Campo nome="amount" rotulo="Valor (R$)" valor={editando ? editando.amount.toFixed(2).replace(".", ",") : ""} obrigatorio inputMode="decimal" placeholder="0,00" />
+            <Campo nome="dueDate" rotulo="Vencimento" type="date" valor={editando ? diaDe(editando.dueDate) : ""} obrigatorio />
+            <Selecao
+              nome="status"
+              rotulo="Status"
+              valor={editando?.status ?? "PENDING"}
+              obrigatorio
+              opcoes={[
+                { valor: "PENDING", rotulo: "Pendente (vira Atrasado após o vencimento)" },
+                { valor: "PAID", rotulo: "Pago" },
+                { valor: "CANCELED", rotulo: "Cancelado" },
+              ]}
+            />
+            <Campo nome="paymentDate" rotulo="Data de pagamento (se pago)" type="date" valor={editando?.paymentDate ? diaDe(editando.paymentDate) : ""} />
+          </FormAcao>
+        </Modal>
+      )}
+    </>
+  );
+}
