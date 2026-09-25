@@ -8,7 +8,7 @@ const CORES = { erro: "FFC62828", ouro: "FF8A6D00", ok: "FF3F6B00" } as const;
 /** Planilha .xlsx formatada a partir de um relatório (mesmos dados da tela). */
 export async function gerarExcel(r: Relatorio, info: { usuario: string; filtros: string }): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Gestão de Contratos";
+  wb.creator = "L&K Assessoria Farmacêutica";
   wb.created = new Date();
   const ws = wb.addWorksheet(r.titulo.slice(0, 31), { views: [{ state: "frozen", ySplit: 4 }] });
   const n = r.colunas.length;

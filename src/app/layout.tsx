@@ -3,8 +3,8 @@ import "./globals.css";
 import { scriptTema } from "@/components/BotaoTema";
 
 export const metadata: Metadata = {
-  title: { default: "Gestão de Contratos", template: "%s · Gestão de Contratos" },
-  description: "Contratos, Licenças Sanitárias (ANVISA), Manuais de Boas Práticas e Faturamento de transportadoras",
+  title: { default: "L&K Assessoria Farmacêutica", template: "%s · L&K Assessoria Farmacêutica" },
+  description: "L&K Assessoria Farmacêutica — Gestão de Contratos e Compliance: contratos, licenças sanitárias ANVISA, manuais de boas práticas e faturamento de transportadoras",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

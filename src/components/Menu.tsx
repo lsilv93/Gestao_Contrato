@@ -14,7 +14,6 @@ import {
   LogOut,
   Menu as MenuIcon,
   ReceiptText,
-  ShieldCheck,
   ShieldPlus,
   Truck,
   Users,
@@ -22,8 +21,9 @@ import {
 } from "lucide-react";
 import { sair } from "@/actions/auth";
 import { BotaoTema } from "./BotaoTema";
+import { MarcaLK } from "./Logo";
 
-type Item = { href: string; rotulo: string; rotuloCliente?: string; icone: typeof ShieldCheck; admin?: boolean };
+type Item = { href: string; rotulo: string; rotuloCliente?: string; icone: typeof Truck; admin?: boolean };
 
 const grupos: { titulo: string; itens: Item[] }[] = [
   { titulo: "", itens: [{ href: "/", rotulo: "Dashboard", icone: LayoutDashboard }] },
@@ -50,17 +50,16 @@ const grupos: { titulo: string; itens: Item[] }[] = [
 
 type UsuarioMenu = { nome: string; email: string; perfil: "ADMIN" | "CLIENT"; carrier: { nome: string; cnpj: string } | null };
 
-function Marca({ compacta }: { compacta?: boolean }) {
+function Marca() {
   return (
-    <div className="flex items-center gap-3">
-      <span className={clsx("fill-acento flex items-center justify-center rounded-2xl", compacta ? "h-9 w-9" : "h-10 w-10")}>
-        <ShieldCheck className={compacta ? "h-4 w-4" : "h-5 w-5"} />
-      </span>
-      <div>
-        <p className="text-[13px] font-semibold leading-tight text-t1">Gestão de Contratos</p>
-        <p className="text-[11px] text-t3">Compliance ANVISA · Transportes</p>
-      </div>
-    </div>
+    <MarcaLK
+      complemento={
+        <>
+          <span className="block text-[12px] font-semibold text-t1">Gestão de Contratos</span>
+          <span className="block text-[11px] text-t3">Compliance</span>
+        </>
+      }
+    />
   );
 }
 
@@ -81,8 +80,8 @@ export function Menu({ usuario, cnpjFormatado }: { usuario: UsuarioMenu; cnpjFor
               {aberto ? <X className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
             </button>
             <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold text-t1">{admin ? "Consultoria — visão de todas as transportadoras" : usuario.carrier?.nome}</p>
-              <p className="truncate text-[11px] text-t3">{admin ? "Perfil ADM Geral · acesso total" : `CNPJ ${cnpjFormatado} · somente visualização e download`}</p>
+              <p className="truncate text-[13px] font-semibold text-t1">{admin ? "Consultoria L&K" : usuario.carrier?.nome}</p>
+              <p className="truncate text-[11px] text-t3">{admin ? "Perfil Administrador · acesso total" : `CNPJ ${cnpjFormatado} · somente visualização e download`}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

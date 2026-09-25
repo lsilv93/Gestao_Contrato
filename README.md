@@ -1,4 +1,4 @@
-# Gestão de Contratos — Compliance ANVISA para Transportadoras
+# L&K Assessoria Farmacêutica — Gestão de Contratos / Compliance
 
 Web App da consultoria para gerir **Contratos (PJ/SPOT)**, **Licenças Sanitárias (ANVISA/VISA)**, **Manuais de Boas Práticas & POPs** e **Serviços/Faturamento (NFs)** dos clientes transportadores. Tem trilha de auditoria imutável e controle de acesso por perfil, amarrado ao CNPJ.
 

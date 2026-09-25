@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, BadgeCheck, BookOpenCheck, CircleDollarSign, Clock3, FileSignature, ReceiptText, ShieldPlus } from "lucide-react";
+import { CaminhaoAnimado } from "@/components/CaminhaoAnimado";
 import { FormFiltro } from "@/components/Filtros";
 import { FiltroTransportadora } from "@/components/FiltroTransportadora";
 import { Barra, Cabecalho, ContadoresFarol, FarolBadge, Indicador, LegendaFarol, Painel, Vazio } from "@/components/ui";
@@ -94,6 +95,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           icone={<ShieldPlus className="h-4 w-4 text-acento" />}
           farois={d.alertas.licencas.farois}
           verTodas={comTransp("/licencas", {})}
+          rodape={
+            <div className="poco mt-4 overflow-hidden px-6 pb-1 pt-2" aria-hidden>
+              <CaminhaoAnimado className="mx-auto max-w-[170px] opacity-80" />
+            </div>
+          }
           href={(fa) => comTransp("/licencas", { farol: fa })}
           vazio="Nenhuma licença vencida ou a vencer nos próximos 60 dias."
           itens={d.alertas.licencas.itens.map((l) => ({
@@ -135,7 +141,9 @@ function PainelAlerta({
   href,
   itens,
   vazio,
+  rodape,
 }: {
+  rodape?: React.ReactNode;
   titulo: string;
   icone: React.ReactNode;
   verTodas: string;
@@ -174,6 +182,7 @@ function PainelAlerta({
           ))
         )}
       </div>
+      {rodape}
     </Painel>
   );
 }

@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useEffect, useRef } from "react";
 import clsx from "clsx";
+import { SimboloLK } from "./Logo";
 import type { Estado } from "@/actions/estado";
 
 type Acao = (estado: Estado, form: FormData) => Promise<Estado>;
@@ -18,8 +19,16 @@ export function BotaoEnviar({
   textoEnviando?: string;
 }) {
   return (
-    <button type="submit" className={className} disabled={enviando}>
-      {enviando ? textoEnviando : children}
+    <button type="submit" className={className} disabled={enviando} aria-busy={enviando}>
+      {enviando ? (
+        <>
+          {/* carregamento: caminhão L&K em movimento, na cor da tinta do botão */}
+          <SimboloLK className="cam-anda h-4 w-4 flex-none" />
+          {textoEnviando}
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 }
