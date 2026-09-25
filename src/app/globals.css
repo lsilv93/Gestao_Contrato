@@ -421,6 +421,9 @@
 .modal {
   width: min(640px, calc(100vw - 28px));
   max-height: calc(100vh - 28px);
+  /* só o conteúdo interno rola: duas áreas de rolagem aninhadas (a do <dialog>
+     e a do conteúdo) deixavam o botão de salvar cortado fora da área visível */
+  overflow: hidden;
   margin: auto;
   padding: 0;
   border: 0;

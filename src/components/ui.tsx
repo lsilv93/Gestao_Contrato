@@ -159,6 +159,7 @@ export function LegendaFarol() {
 
 const estiloStatus: Record<string, string> = {
   // faturamento
+  PENDING_EMISSION: "text-ouro bg-ouro/10",
   PENDING: "text-ouro bg-ouro/10",
   OVERDUE: "text-erro bg-erro/10",
   PAID: "text-ok bg-ok/10",

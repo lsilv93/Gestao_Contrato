@@ -7,6 +7,7 @@ import clsx from "clsx";
 import {
   BookOpenCheck,
   FileSpreadsheet,
+  FileWarning,
   FileSignature,
   History,
   KeyRound,
@@ -64,7 +65,16 @@ function Marca() {
 }
 
 /** Menu lateral + barra superior (com o botão de tema). */
-export function Menu({ usuario, cnpjFormatado }: { usuario: UsuarioMenu; cnpjFormatado: string | null }) {
+export function Menu({
+  usuario,
+  cnpjFormatado,
+  emissao,
+}: {
+  usuario: UsuarioMenu;
+  cnpjFormatado: string | null;
+  /** ADM: NFs pendentes de emissão (notificador do cabeçalho). */
+  emissao?: { total: number; atrasadas: number } | null;
+}) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
   const ativo = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
@@ -89,6 +99,18 @@ export function Menu({ usuario, cnpjFormatado }: { usuario: UsuarioMenu; cnpjFor
               <p className="text-[12px] font-semibold text-t1">{usuario.nome}</p>
               <p className="text-[11px] text-t3">{usuario.email}</p>
             </div>
+            {emissao && emissao.total > 0 && (
+              <Link
+                href="/faturamento?status=PENDING_EMISSION"
+                className={clsx("btn-icone relative w-auto gap-1.5 px-3 text-[12px] font-semibold", emissao.atrasadas ? "!text-erro" : "!text-ouro")}
+                title={`${emissao.total} NF(s) pendente(s) de emissão${emissao.atrasadas ? ` — ${emissao.atrasadas} atrasada(s)` : ""}`}
+                aria-label={`${emissao.total} notas fiscais pendentes de emissão`}
+              >
+                <FileWarning className="h-5 w-5" />
+                <span className="num">{emissao.total}</span>
+                {emissao.atrasadas > 0 && <span className="ponto ponto-pulsante absolute right-1.5 top-1.5 text-erro" style={{ animationName: "pulso-erro" }} />}
+              </Link>
+            )}
             <BotaoTema />
             <form action={sair}>
               <button className="btn-icone" aria-label="Sair" title="Sair">

@@ -119,7 +119,7 @@ async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio:
   const totalContratos = pj.valor + spot.valor;
 
   // ---------------- faturamento ----------------
-  const baseNF: Prisma.FinancialServiceWhereInput = { ...escopo, status: { not: "CANCELED" }, ...(mes ? { dueDate: { gte: mes.inicio, lt: mes.fim } } : {}) };
+  const baseNF: Prisma.FinancialServiceWhereInput = { ...escopo, status: { notIn: ["CANCELED", "PENDING_EMISSION"] }, ...(mes ? { dueDate: { gte: mes.inicio, lt: mes.fim } } : {}) };
   const somaNF = (where: Prisma.FinancialServiceWhereInput) =>
     prisma.financialService.aggregate({ where: { ...baseNF, ...where }, _sum: { amount: true }, _count: true });
   const [emitidas, pagas, vencidas, pendentes, nfPorTipo] = await Promise.all([

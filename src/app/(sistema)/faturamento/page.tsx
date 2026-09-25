@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { CheckCircle2, History, Plus } from "lucide-react";
-import { excluirServico, marcarPago, salvarServico } from "@/actions/faturamento";
+import { CheckCircle2, FileUp, History, Plus } from "lucide-react";
+import { confirmarEmissao, excluirServico, marcarPago, salvarServico } from "@/actions/faturamento";
+import { textoEmissao } from "@/domain/cicloFaturamento";
+import { garantirPendenciasEmissao } from "@/server/cicloFaturamento";
 import { BotaoEditar, BotaoExcluir } from "@/components/Acoes";
 import { Campo, CampoArquivo, LinkArquivo, Selecao, Voltar } from "@/components/Campos";
 import { FormFiltro } from "@/components/Filtros";
@@ -41,13 +43,16 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
   const filtro = lerFiltroFaturamento(sp);
   const editarId = admin ? param(sp, "editar") : undefined;
   const pagarId = admin ? param(sp, "pagar") : undefined;
+  const emitirId = admin ? param(sp, "emitir") : undefined;
+  await garantirPendenciasEmissao(); // ciclo mensal: gera as pendências de emissão do dia
   const novo = admin && param(sp, "novo") === "1";
-  const [lista, transportadoras, editando, pagando, contratos] = await Promise.all([
+  const [lista, transportadoras, editando, pagando, contratos, emitindo] = await Promise.all([
     listarServicos(usuario, filtro),
     admin ? opcoesTransportadoras() : [],
     editarId ? buscarServico(usuario, editarId) : null,
     pagarId ? buscarServico(usuario, pagarId) : null,
     admin && (novo || editarId) ? listarContratos(usuario, { status: "ACTIVE" }) : [],
+    emitirId ? buscarServico(usuario, emitirId) : null,
   ]);
   const aqui = urlCom(BASE, sp);
 
@@ -104,11 +109,16 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
               <tbody>
                 {lista.map((s) => {
                   const pendente = s.status === "PENDING";
+                  const aEmitir = s.status === "PENDING_EMISSION";
+                  const acaoLinha = aEmitir ? { emitir: s.id } : pendente ? { pagar: s.id } : null;
                   return (
-                    <LinhaClicavel key={s.id} href={admin && pendente ? urlCom(BASE, sp, { pagar: s.id }) : undefined} titulo="Clique para marcar como pago">
-                      <td><FarolBadge farol={s.farol} rotuloResolvido={rotuloStatusFaturamento[s.situacao]} /></td>
+                    <LinhaClicavel key={s.id} href={admin && acaoLinha ? urlCom(BASE, sp, acaoLinha) : undefined} titulo={aEmitir ? "Clique para emitir a NF" : "Clique para marcar como pago"}>
                       <td>
-                        <p className="num font-semibold text-t1">{s.invoiceNumber}</p>
+                        <FarolBadge farol={s.farol} rotulo={aEmitir && s.farol ? { VERDE: "A emitir", AMARELO: "Emitir hoje", VERMELHO: "Emissão atrasada" }[s.farol] : undefined} rotuloResolvido={rotuloStatusFaturamento[s.situacao]} />
+                      </td>
+                      <td>
+                        <p className="num font-semibold text-t1">{s.invoiceNumber ?? <span className="font-sans text-[11px] font-medium text-ouro">NF a emitir</span>}</p>
+                        {aEmitir && s.emissionDate && <p className="text-[10px] text-t4">Emitir até {formatarData(s.emissionDate)} · {textoEmissao(s.emissionDate, diaLocal())}</p>}
                         {s.description && <p className="max-w-[220px] truncate text-[10px] text-t4" title={s.description}>{s.description}</p>}
                       </td>
                       <td>
@@ -132,11 +142,28 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
                                 <CheckCircle2 className="h-3.5 w-3.5" /> Pago
                               </Link>
                             )}
-                            <BotaoEditar href={urlCom(BASE, sp, { editar: s.id })} />
+                            {aEmitir ? (
+                              <Link href={urlCom(BASE, sp, { emitir: s.id })} className="btn-primary btn-sm" scroll={false}>
+                                <FileUp className="h-3.5 w-3.5" /> Emitir NF
+                              </Link>
+                            ) : (
+                              <BotaoEditar href={urlCom(BASE, sp, { editar: s.id })} />
+                            )}
                             <Link href={`/auditoria?entidade=FinancialService&registro=${s.id}`} className="btn-secondary btn-sm" title="Trilha de auditoria">
                               <History className="h-3.5 w-3.5" />
                             </Link>
-                            <BotaoExcluir acao={excluirServico} id={s.id} voltar={aqui} descricao={`a NF ${s.invoiceNumber}`} />
+                            {aEmitir ? (
+                              <BotaoExcluir
+                                acao={excluirServico}
+                                id={s.id}
+                                voltar={aqui}
+                                rotulo="Dispensar"
+                                descricao=""
+                                confirmacao={`Dispensar a emissão da competência ${s.competence ?? ""} (não faturar este mês)? Fica registrado na auditoria.`}
+                              />
+                            ) : (
+                              <BotaoExcluir acao={excluirServico} id={s.id} voltar={aqui} descricao={`a NF ${s.invoiceNumber}`} />
+                            )}
                           </div>
                         </td>
                       )}
@@ -149,6 +176,36 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
         )}
         <LegendaFarol />
       </Painel>
+
+      {emitindo && (
+        <Modal
+          titulo="Emitir NF e enviar para cobrança"
+          descricao={`${nomeCarrier(emitindo.carrier)} · CNPJ ${formatarCnpj(emitindo.carrier.cnpj)} · competência ${emitindo.competence ?? "—"}`}
+          fecharHref={aqui}
+          largo
+        >
+          {emitindo.status !== "PENDING_EMISSION" ? (
+            <Vazio>Esta NF já foi emitida.</Vazio>
+          ) : (
+            <FormAcao acao={confirmarEmissao} botao={<><FileUp className="h-4 w-4" /> Confirmar emissão e enviar para cobrança</>} classeBotao="btn-primary w-full" limpar={false} className="grid gap-4 sm:grid-cols-2">
+              <input type="hidden" name="id" value={emitindo.id} />
+              <Voltar href={aqui} />
+              <div className="poco p-4 text-[12px] leading-relaxed text-t2 sm:col-span-2">
+                Data limite de emissão: <b className="num text-t1">{formatarData(emitindo.emissionDate)}</b> · valor previsto <b className="num text-t1">{formatarMoeda(emitindo.amount)}</b>.
+                <br />
+                Ao confirmar, o alerta de emissão é resolvido e a fatura passa para <b className="text-t1">Aguardando pagamento</b>, com os faróis de vencimento.
+              </div>
+              <Campo nome="invoiceNumber" rotulo="Número da NF" obrigatorio maxLength={40} autoFocus />
+              <Campo nome="amount" rotulo="Valor da NF (R$)" valor={emitindo.amount.toFixed(2).replace(".", ",")} obrigatorio inputMode="decimal" />
+              <Campo nome="dueDate" rotulo="Vencimento do pagamento" type="date" valor={diaDe(emitindo.dueDate)} obrigatorio />
+              <div>
+                <label className="label" htmlFor="campo-arquivo">Arquivo da NF (PDF ou XML) *</label>
+                <input id="campo-arquivo" name="arquivo" type="file" required accept=".pdf,.xml,application/pdf,application/xml,text/xml" className="input file:mr-3 file:rounded-full file:border-0 file:bg-acento/15 file:px-3 file:py-1.5 file:text-[11px] file:font-semibold file:text-acento" />
+              </div>
+            </FormAcao>
+          )}
+        </Modal>
+      )}
 
       {pagando && (
         <Modal titulo={`Marcar NF ${pagando.invoiceNumber} como paga`} descricao={`${nomeCarrier(pagando.carrier)} · vencimento ${formatarData(pagando.dueDate)} · ${formatarMoeda(pagando.amount)}`} fecharHref={aqui}>

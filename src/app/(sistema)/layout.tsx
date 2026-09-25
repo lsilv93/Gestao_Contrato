@@ -7,6 +7,7 @@ import { AvisoPendencias } from "@/components/AvisoPendencias";
 import { TabelaPendencias } from "@/components/Pendencias";
 import { COOKIE_AVISO } from "@/lib/session";
 import { pendenciasCliente } from "@/server/pendencias";
+import { contarPendenciasEmissao, garantirPendenciasEmissao } from "@/server/cicloFaturamento";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +16,12 @@ export default async function SistemaLayout({ children }: { children: React.Reac
   // Cliente: aviso de pendências (até 30 dias) uma vez por login
   const mostrarAviso = usuario.perfil === "CLIENT" && (await cookies()).get(COOKIE_AVISO)?.value === "1";
   const avisos = mostrarAviso ? (await pendenciasCliente(usuario)).avisos : [];
+  // ADM: ciclo mensal de NF — gera as pendências do dia e alimenta o notificador do cabeçalho
+  if (usuario.perfil === "ADMIN") await garantirPendenciasEmissao();
+  const emissao = usuario.perfil === "ADMIN" ? await contarPendenciasEmissao() : null;
   return (
     <div className="min-h-screen">
-      <Menu usuario={usuario} cnpjFormatado={usuario.carrier ? formatarCnpj(usuario.carrier.cnpj) : null} />
+      <Menu usuario={usuario} cnpjFormatado={usuario.carrier ? formatarCnpj(usuario.carrier.cnpj) : null} emissao={emissao} />
       <main className="lg:pl-[268px]">
         <div className="entrada mx-auto max-w-7xl px-[14px] py-6 sm:px-6 lg:px-8 lg:py-8">
           {modoDemo() && (

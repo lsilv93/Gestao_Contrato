@@ -30,8 +30,10 @@ enum ContractStatus {
   TERMINATED // Encerrado
 }
 
+// Ciclo: PENDING_EMISSION (NF ainda não emitida) → PENDING (aguardando pagamento) → PAID.
 // "Atrasado" não é gravado: é um PENDING com vencimento anterior a hoje.
 enum FinancialStatus {
+  PENDING_EMISSION
   PENDING
   PAID
   CANCELED
@@ -119,6 +121,14 @@ model Contract {
   expirationDate DateTime       @db.Date
   status         ContractStatus @default(ACTIVE)
   notes          String?
+  /// Ciclo de faturamento: dia do mês em que a NF deve ser emitida (1–31; em meses curtos vale o último dia).
+  invoiceDay     Int            @default(5)
+  /// Dia do mês do vencimento do pagamento (menor que o dia de emissão = mês seguinte).
+  dueDay         Int            @default(10)
+  /// Valor previsto de cada NF mensal.
+  billingAmount  Decimal        @db.Decimal(14, 2)
+  /// Antecedência (dias) com que a pendência de emissão é gerada.
+  emissionLeadDays Int          @default(0)
   fileId         String?        @unique
   file           StoredFile?    @relation("ContractFile", fields: [fileId], references: [id], onDelete: SetNull)
   createdAt      DateTime       @default(now())
@@ -138,19 +148,25 @@ model FinancialService {
   contractId    String?
   contract      Contract?       @relation(fields: [contractId], references: [id], onDelete: SetNull)
   contractType  ContractType
-  invoiceNumber String
+  /// Número da NF (vazio enquanto PENDING_EMISSION).
+  invoiceNumber String?
   description   String?
+  /// Ciclo automático: competência "YYYY-MM" e data limite para emitir a NF.
+  competence    String?
+  emissionDate  DateTime?       @db.Date
   dueDate       DateTime        @db.Date
   paymentDate   DateTime?       @db.Date
   amount        Decimal         @db.Decimal(14, 2)
   status        FinancialStatus @default(PENDING)
-  /// PDF da Nota Fiscal (baixado pelo cliente no aviso de pendência / bloqueio).
+  /// PDF ou XML da Nota Fiscal (baixado pelo cliente no aviso de pendência / bloqueio).
   fileId        String?         @unique
   file          StoredFile?     @relation("ServiceFile", fields: [fileId], references: [id], onDelete: SetNull)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
   @@unique([carrierId, invoiceNumber])
+  /// no máximo uma pendência de emissão por contrato e mês
+  @@unique([contractId, competence])
   @@index([dueDate])
   @@index([status])
   @@map("financial_services")

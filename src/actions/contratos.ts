@@ -5,12 +5,16 @@ import { prisma } from "@/server/prisma";
 import { exigirAdmin } from "@/server/auth";
 import { auditar } from "@/server/auditoria";
 import { lerArquivo } from "@/server/arquivos";
+import { gerarPendenciasEmissao } from "@/server/cicloFaturamento";
 import { ErroNegocio } from "@/server/erros";
 import { campos, concluir, data, dataOpcional, id, lerId, obrigatorio, opcional, valor } from "./comum";
 import { excluirArquivo, substituirArquivo } from "./documentos";
 import { tratarErro, type Estado } from "./estado";
 
 const BASE = "/contratos";
+
+const dia = (rotulo: string) =>
+  z.coerce.number({ error: `Informe ${rotulo}.` }).int(`Informe ${rotulo} (1 a 31).`).min(1, `Informe ${rotulo} (1 a 31).`).max(31, `Informe ${rotulo} (1 a 31).`);
 
 const schema = z
   .object({
@@ -22,6 +26,16 @@ const schema = z
     expirationDate: data("a data de vencimento"),
     status: z.enum(["ACTIVE", "RENEWED", "TERMINATED"]).default("ACTIVE"),
     notes: opcional(2000),
+    // ciclo de faturamento (obrigatório)
+    invoiceDay: dia("o dia de emissão da NF"),
+    dueDay: dia("o dia de vencimento do pagamento"),
+    billingAmount: valor("o valor previsto por NF"),
+    emissionLeadDays: z.coerce
+      .number({ error: "Antecedência inválida." })
+      .int()
+      .min(0, "A antecedência vai de 0 a 20 dias.")
+      .max(20, "A antecedência vai de 0 a 20 dias.")
+      .default(0),
   })
   .refine((d) => !d.startDate || d.startDate <= d.expirationDate, { message: "O início não pode ser depois do vencimento." });
 
@@ -41,6 +55,8 @@ export async function salvarContrato(_: Estado, form: FormData): Promise<Estado>
       await auditar(tx, { usuario: u, action: idAtual ? "UPDATE" : "CREATE", entityName: "Contract", entityId: c.id, details: antes ? { antes, depois: c } : c });
       return c;
     });
+    // regra de faturamento pode ter mudado: gera já a pendência de emissão, se for o dia
+    await gerarPendenciasEmissao().catch((e) => console.error("[ciclo] geração após salvar contrato", e));
     msg = `Contrato "${c.title}" ${idAtual ? "atualizado" : "cadastrado"}.`;
   } catch (e) {
     return tratarErro(e);

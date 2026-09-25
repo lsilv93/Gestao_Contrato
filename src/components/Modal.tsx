@@ -37,11 +37,20 @@ export function Modal({
       ref={ref}
       className={clsx("modal", largo && "modal-largo")}
       onCancel={(e) => {
+        // o "cancel" do <input type=file> (seletor fechado sem arquivo) borbulha até aqui
+        if (e.target !== ref.current) return;
         e.preventDefault();
         fechar();
       }}
       onClick={(e) => {
-        if (e.target === ref.current) fechar(); // clique no fundo
+        // fecha só com clique no FUNDO (fora da caixa do modal). Checar apenas o alvo
+        // fechava também com clique na borda/área de rolagem do próprio modal,
+        // perdendo o que o usuário tinha digitado.
+        const d = ref.current;
+        if (!d || e.target !== d) return;
+        const r = d.getBoundingClientRect();
+        const dentro = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+        if (!dentro) fechar();
       }}
     >
       <div className="max-h-[calc(100vh-28px)] overflow-y-auto p-6 sm:p-7">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, BadgeCheck, BookOpenCheck, CircleDollarSign, Clock3, FileSignature, ReceiptText, ShieldPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, BadgeCheck, FileUp, FileWarning, BookOpenCheck, CircleDollarSign, Clock3, FileSignature, ReceiptText, ShieldPlus } from "lucide-react";
 import { FormFiltro } from "@/components/Filtros";
 import { FiltroTransportadora } from "@/components/FiltroTransportadora";
 import { Barra, Cabecalho, ContadoresFarol, FarolBadge, Indicador, LegendaFarol, Painel, Vazio } from "@/components/ui";
@@ -7,10 +7,12 @@ import type { Farol } from "@/domain/farol";
 import { textoPrazo } from "@/domain/farol";
 import { rotuloCategoriaManual, rotuloSituacaoLicenca } from "@/domain/status";
 import { diaLocal, formatarData, rotuloMes } from "@/lib/datas";
-import { formatarMoeda, formatarNumero, formatarPercentual } from "@/lib/formatos";
+import { formatarCnpj, formatarMoeda, formatarNumero, formatarPercentual } from "@/lib/formatos";
 import { urlCom } from "@/lib/url";
 import { ehAdmin, requireUsuario } from "@/server/auth";
 import { carregarDashboard, lerFiltroDashboard, type Dashboard } from "@/server/consultas/dashboard";
+import { garantirPendenciasEmissao, listarPendenciasEmissao, type PendenciaEmissao } from "@/server/cicloFaturamento";
+import { textoEmissao } from "@/domain/cicloFaturamento";
 import type { Params } from "@/server/consultas/filtros";
 import { nomeCarrier } from "@/server/consultas/filtros";
 import { opcoesTransportadoras } from "@/server/consultas/transportadoras";
@@ -22,7 +24,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const admin = ehAdmin(usuario);
   const sp = await searchParams;
   const filtro = lerFiltroDashboard(sp);
-  const [d, transportadoras] = await Promise.all([carregarDashboard(usuario, filtro), admin ? opcoesTransportadoras() : []]);
+  if (admin) await garantirPendenciasEmissao(); // ciclo mensal de NF (idempotente)
+  const [d, transportadoras, emissoes] = await Promise.all([
+    carregarDashboard(usuario, filtro),
+    admin ? opcoesTransportadoras() : [],
+    admin ? listarPendenciasEmissao() : [],
+  ]);
 
   // links dos faróis levam o filtro de transportadora junto
   const comTransp = (base: string, extra: Record<string, string>) => urlCom(base, filtro.carrierId ? { transportadora: filtro.carrierId } : {}, extra);
@@ -34,6 +41,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         titulo="Dashboard"
         descricao={admin ? "Visão consolidada de contratos, faturamento e vencimentos de todas as transportadoras." : `Situação de contratos, licenças e manuais de ${usuario.carrier?.nome}.`}
       />
+
+      {admin && <PendenciasEmissao itens={emissoes} />}
 
       {/* período e transportadora só afetam as métricas financeiras (ADM Geral) */}
       {admin && (
@@ -243,5 +252,66 @@ function Financeiro({
       </div>
 
     </>
+  );
+}
+
+const rotuloEmissao = { VERDE: "A emitir", AMARELO: "Emitir hoje", VERMELHO: "Atrasada" } as const;
+
+/** Card de destaque do ADM: NFs pendentes de emissão do ciclo mensal dos contratos. */
+function PendenciasEmissao({ itens }: { itens: PendenciaEmissao[] }) {
+  const atrasadas = itens.filter((i) => i.farol === "VERMELHO").length;
+  const hoje = diaLocal();
+  return (
+    <Painel
+      className={itens.length ? "mb-6" : "mb-6 !py-4"}
+      titulo={
+        <>
+          <FileWarning className={itens.length ? (atrasadas ? "h-4 w-4 text-erro" : "h-4 w-4 text-ouro") : "h-4 w-4 text-acento"} />
+          Notas Fiscais Pendentes de Emissão
+          {itens.length > 0 && (
+            <span className={`pill ${atrasadas ? "bg-erro/10 text-erro" : "bg-ouro/10 text-ouro"}`}>
+              {itens.length}
+              {atrasadas ? ` · ${atrasadas} atrasada(s)` : ""}
+            </span>
+          )}
+        </>
+      }
+      acoes={
+        itens.length > 0 && (
+          <Link href="/faturamento?status=PENDING_EMISSION" className="btn-secondary btn-sm">
+            Ver no faturamento <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        )
+      }
+    >
+      {itens.length === 0 ? (
+        <p className="text-[12px] text-t3">Nenhuma NF pendente de emissão. Os alertas aparecem aqui automaticamente no dia de emissão de cada contrato.</p>
+      ) : (
+        <div className="space-y-2">
+          {itens.map((i) => (
+            <div key={i.id} className="poco grid items-center gap-3 px-4 py-3 sm:grid-cols-[130px_minmax(0,1.4fr)_minmax(0,1fr)_120px_auto]">
+              <FarolBadge farol={i.farol} rotulo={rotuloEmissao[i.farol]} />
+              <div className="min-w-0">
+                <p className="truncate text-[12px] font-semibold text-t1">{i.transportadora}</p>
+                <p className="num truncate text-[10px] text-t4">{formatarCnpj(i.cnpj)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-t3">Data limite para emissão</p>
+                <p className="num text-[12px] text-t1">
+                  {formatarData(i.emissao)} <span className="text-[10px] text-t4">· {textoEmissao(i.emissao, hoje)}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-t3">Valor previsto</p>
+                <p className="num text-[12px] font-semibold text-t1">{formatarMoeda(i.valor)}</p>
+              </div>
+              <Link href={`/faturamento?emitir=${i.id}`} className="btn-primary btn-sm justify-self-start sm:justify-self-end">
+                <FileUp className="h-3.5 w-3.5" /> Emitir NF
+              </Link>
+            </div>
+          ))}
+        </div>
+      )}
+    </Painel>
   );
 }

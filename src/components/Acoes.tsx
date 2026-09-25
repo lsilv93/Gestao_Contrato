@@ -15,15 +15,29 @@ export function BotaoEditar({ href }: { href: string }) {
 }
 
 /** Exclusão com confirmação (gera log DELETE). */
-export function BotaoExcluir({ acao, id, voltar, descricao }: { acao: Acao; id: string; voltar: string; descricao: string }) {
+export function BotaoExcluir({
+  acao,
+  id,
+  voltar,
+  descricao,
+  rotulo = "Excluir",
+  confirmacao,
+}: {
+  acao: Acao;
+  id: string;
+  voltar: string;
+  descricao: string;
+  rotulo?: string;
+  confirmacao?: string;
+}) {
   return (
     <FormAcao
       acao={acao}
       className="inline"
-      confirmar={`Excluir ${descricao}? Esta ação fica registrada na trilha de auditoria.`}
+      confirmar={confirmacao ?? `${rotulo} ${descricao}? Esta ação fica registrada na trilha de auditoria.`}
       botao={
         <>
-          <Trash2 className="h-3.5 w-3.5" /> Excluir
+          <Trash2 className="h-3.5 w-3.5" /> {rotulo}
         </>
       }
       classeBotao="btn-danger btn-sm"

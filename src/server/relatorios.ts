@@ -144,12 +144,12 @@ async function financeiro(u: UsuarioAtual, f: FiltroRelatorio): Promise<Relatori
     return {
       transportadora: nomeCarrier(s.carrier),
       cnpj: cnpjFmt(s.carrier.cnpj),
-      nf: s.invoiceNumber,
+      nf: s.invoiceNumber ?? "—",
       tipo: s.contractType,
       valor: Number(s.amount),
       vencimento: s.dueDate,
       pagamento: s.paymentDate,
-      status: s.status === "PAID" ? "Pago" : fa ? rotuloFarol[fa] : "—",
+      status: s.status === "PAID" ? "Pago" : s.status === "PENDING_EMISSION" ? "Pendente de emissão" : fa ? rotuloFarol[fa] : "—",
       atraso,
     };
   });

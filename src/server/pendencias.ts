@@ -43,7 +43,7 @@ export async function pendenciasCliente(u: UsuarioAtual) {
   const hoje = diaLocal();
   const itens: Pendencia[] = lista.map((s) => ({
     id: s.id,
-    invoiceNumber: s.invoiceNumber,
+    invoiceNumber: s.invoiceNumber ?? "—",
     amount: Number(s.amount),
     dueDate: diaDe(s.dueDate),
     diasAtraso: Math.max(0, -diasAte(s.dueDate, hoje)),

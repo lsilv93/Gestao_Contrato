@@ -82,6 +82,7 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
                   <th>Descrição</th>
                   <th>Tipo</th>
                   {admin && <th className="!text-right">Valor</th>}
+                  {admin && <th>Faturamento</th>}
                   <th>Vencimento</th>
                   <th>Status</th>
                   <th>Documento</th>
@@ -99,6 +100,14 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
                     <td className="max-w-[280px] truncate" title={c.title}>{c.title}</td>
                     <td><StatusBadge status={c.contractType} rotulo={c.contractType} /></td>
                     {admin && <td className="num text-right text-t1">{formatarMoeda(c.amount)}</td>}
+                    {admin && (
+                      <td>
+                        <p className="text-[11px] text-t1">
+                          NF dia <b className="num">{String(c.invoiceDay).padStart(2, "0")}</b> · vence dia <b className="num">{String(c.dueDay).padStart(2, "0")}</b>
+                        </p>
+                        <p className="num text-[10px] text-t4">{formatarMoeda(c.billingAmount)}/mês{c.emissionLeadDays ? ` · alerta ${c.emissionLeadDays}d antes` : ""}</p>
+                      </td>
+                    )}
                     <td>
                       <p className="num">{formatarData(c.expirationDate)}</p>
                       {c.farol && <p className="text-[10px] text-t4">{textoPrazo(c.expirationDate)}</p>}
@@ -138,6 +147,13 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
             <Campo nome="expirationDate" rotulo="Data de vencimento" type="date" valor={editando ? diaDe(editando.expirationDate) : ""} obrigatorio />
             <Selecao nome="status" rotulo="Status" valor={editando?.status ?? "ACTIVE"} obrigatorio opcoes={Object.entries(rotuloStatusContrato).map(([valor, rotulo]) => ({ valor, rotulo }))} />
             <CampoArquivo rotulo="Contrato (PDF ou Word, até 4 MB)" obrigatorio={!editando} atual={editando?.file} />
+            <fieldset className="poco grid gap-4 p-4 sm:col-span-2 sm:grid-cols-4">
+              <legend className="secao px-1">Ciclo de faturamento (NF mensal)</legend>
+              <Campo nome="invoiceDay" rotulo="Dia de emissão da NF" type="number" min={1} max={31} valor={editando?.invoiceDay ?? ""} obrigatorio placeholder="5" ajuda="Todo mês, nesse dia." />
+              <Campo nome="dueDay" rotulo="Dia do vencimento" type="number" min={1} max={31} valor={editando?.dueDay ?? ""} obrigatorio placeholder="10" ajuda="Antes do dia de emissão = mês seguinte." />
+              <Campo nome="billingAmount" rotulo="Valor previsto por NF (R$)" valor={editando ? editando.billingAmount.toFixed(2).replace(".", ",") : ""} obrigatorio inputMode="decimal" placeholder="0,00" />
+              <Campo nome="emissionLeadDays" rotulo="Alertar com antecedência (dias)" type="number" min={0} max={20} valor={editando?.emissionLeadDays ?? 0} ajuda="0 = no próprio dia." />
+            </fieldset>
             <AreaTexto nome="notes" rotulo="Observações" valor={editando?.notes} className="sm:col-span-2" />
           </FormAcao>
         </Modal>

@@ -36,6 +36,7 @@ export async function listarContratos(u: UsuarioAtual, f: FiltroContratos = {}) 
   return lista.map((c) => ({
     ...c,
     amount: verValores ? Number(c.amount) : null,
+    billingAmount: verValores ? Number(c.billingAmount) : null,
     farol: farolVencimento(c.expirationDate, c.status !== "ACTIVE", hoje),
   }));
 }
@@ -43,5 +44,5 @@ export type ContratoLinha = Awaited<ReturnType<typeof listarContratos>>[number];
 
 export async function buscarContrato(u: UsuarioAtual, id: string) {
   const c = await prisma.contract.findFirst({ where: { id, ...escopoCarrier(u) }, include: { file: arquivoResumo } });
-  return c ? { ...c, amount: Number(c.amount) } : null;
+  return c ? { ...c, amount: Number(c.amount), billingAmount: Number(c.billingAmount) } : null;
 }

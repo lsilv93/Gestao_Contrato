@@ -115,11 +115,12 @@ export function CampoArquivo({
 /** Link de download (a API confere o CNPJ antes de entregar o arquivo). */
 export function LinkArquivo({ arquivo, compacto }: { arquivo: { id: string; fileName: string; size: number } | null | undefined; compacto?: boolean }) {
   if (!arquivo) return <span className="text-t4">—</span>;
-  const pdf = arquivo.fileName.toLowerCase().endsWith(".pdf");
+  const ext = arquivo.fileName.split(".").pop()?.toLowerCase();
+  const pdf = ext === "pdf";
   if (compacto) {
     return (
       <a href={`/api/arquivos/${arquivo.id}`} className="btn-secondary btn-sm" title={`Baixar ${arquivo.fileName} (${formatarBytes(arquivo.size)})`}>
-        <Download className="h-3.5 w-3.5" /> {pdf ? "PDF" : "Word"}
+        <Download className="h-3.5 w-3.5" /> {pdf ? "PDF" : ext === "xml" ? "XML" : "Word"}
       </a>
     );
   }

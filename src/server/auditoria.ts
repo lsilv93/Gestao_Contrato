@@ -22,12 +22,12 @@ function serializar(v: unknown): Prisma.InputJsonValue {
  */
 export async function auditar(
   db: Db,
-  p: { usuario: Pick<UsuarioAtual, "id" | "nome"> | null; action: AuditAction; entityName: Entidade; entityId?: string | null; details?: unknown },
+  p: { usuario: Pick<UsuarioAtual, "id" | "nome"> | null; /** autor exibido quando não há usuário (rotinas automáticas) */ sistema?: string; action: AuditAction; entityName: Entidade; entityId?: string | null; details?: unknown },
 ) {
   await db.auditLog.create({
     data: {
       userId: p.usuario?.id ?? null,
-      userName: p.usuario?.nome ?? null,
+      userName: p.usuario?.nome ?? p.sistema ?? null,
       action: p.action,
       entityName: p.entityName,
       entityId: p.entityId ?? null,

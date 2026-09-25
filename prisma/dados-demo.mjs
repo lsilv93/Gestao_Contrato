@@ -41,6 +41,15 @@ export async function popularDemo(prisma, { criarAdmin = false } = {}) {
   const hoje = new Date(`${hojeTxt}T00:00:00Z`);
   const d = (dias) => new Date(hoje.getTime() + dias * DIA);
 
+  // Ciclo de faturamento da demo: um contrato emite hoje (amarelo), outro está atrasado (vermelho).
+  const diaHoje = hoje.getUTCDate();
+  const cicloDemo = (transportadora, tipo, valor, indice) => {
+    const base = { billingAmount: tipo === "PJ" ? Math.round(valor / 12) : valor, dueDay: 10, emissionLeadDays: 0 };
+    if (transportadora === "TransLog" && indice === 0) return { ...base, invoiceDay: diaHoje, dueDay: Math.min(28, diaHoje + 10) };
+    if (transportadora === "Rápido Cold" && indice === 0) return { ...base, invoiceDay: Math.max(1, diaHoje - 3) };
+    return { ...base, invoiceDay: diaHoje < 28 ? 28 : 1 }; // demais: fora da janela atual
+  };
+
   let admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
   if (!admin && criarAdmin) {
     admin = await prisma.user.create({
@@ -86,7 +95,16 @@ export async function popularDemo(prisma, { criarAdmin = false } = {}) {
     for (const [tipo, titulo, valor, inicio, venc] of p.contratos) {
       const f = await prisma.storedFile.create({ data: { ...pdf(`Contrato ${titulo}`), uploadedById: admin?.id } });
       const k = await prisma.contract.create({
-        data: { carrierId: c.id, contractType: tipo, title: titulo, amount: valor, startDate: d(inicio), expirationDate: d(venc), fileId: f.id },
+        data: {
+          carrierId: c.id,
+          contractType: tipo,
+          title: titulo,
+          amount: valor,
+          startDate: d(inicio),
+          expirationDate: d(venc),
+          fileId: f.id,
+          ...cicloDemo(t.tradeName, tipo, valor, contratos.length),
+        },
       });
       contratos.push(k);
       await log("CREATE", "Contract", k.id, { title: titulo });

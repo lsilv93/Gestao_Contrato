@@ -19,6 +19,8 @@ export async function middleware(req: NextRequest) {
   const sessao = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const naLogin = pathname === "/login";
   if (pathname === "/sair") return NextResponse.next();
+  // cron da Vercel (protegido pelo CRON_SECRET na própria rota)
+  if (pathname.startsWith("/api/cron/")) return NextResponse.next();
   const api = pathname.startsWith("/api/");
 
   if (!sessao) {

@@ -12,9 +12,10 @@ export const rotuloStatusContrato: Record<ContractStatus, string> = {
 };
 
 // ---------------- Faturamento ----------------
-export type StatusFaturamento = "PENDING" | "PAID" | "OVERDUE" | "CANCELED";
+export type StatusFaturamento = "PENDING_EMISSION" | "PENDING" | "PAID" | "OVERDUE" | "CANCELED";
 export const rotuloStatusFaturamento: Record<StatusFaturamento, string> = {
-  PENDING: "Pendente",
+  PENDING_EMISSION: "Pendente de emissão",
+  PENDING: "Aguardando pagamento",
   PAID: "Pago",
   OVERDUE: "Atrasado",
   CANCELED: "Cancelado",

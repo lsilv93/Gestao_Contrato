@@ -1,6 +1,7 @@
 import "server-only";
 import type { ContractType, Prisma } from "@prisma/client";
 import { farolVencimento } from "@/domain/farol";
+import { farolEmissao } from "@/domain/cicloFaturamento";
 import { statusFaturamento, type StatusFaturamento } from "@/domain/status";
 import { diaLocal, hojeData } from "@/lib/datas";
 import type { UsuarioAtual } from "../auth";
@@ -14,7 +15,7 @@ export type FiltroFaturamento = { carrierId?: string; tipo?: ContractType; statu
 export const lerFiltroFaturamento = (sp: Params): FiltroFaturamento => ({
   carrierId: param(sp, "transportadora"),
   tipo: paramEnum(sp, "tipo", ["PJ", "SPOT"] as const),
-  status: paramEnum(sp, "status", ["PENDING", "PAID", "OVERDUE", "CANCELED"] as const),
+  status: paramEnum(sp, "status", ["PENDING_EMISSION", "PENDING", "PAID", "OVERDUE", "CANCELED"] as const),
   nf: param(sp, "nf"),
 });
 
@@ -46,7 +47,11 @@ export async function listarServicos(u: UsuarioAtual, f: FiltroFaturamento = {})
     ...s,
     amount: Number(s.amount),
     situacao: statusFaturamento(s, hoje),
-    farol: farolVencimento(s.dueDate, s.status !== "PENDING", hoje),
+    // pendente de emissão usa o farol de EMISSÃO; aguardando pagamento, o farol de vencimento
+    farol:
+      s.status === "PENDING_EMISSION"
+        ? farolEmissao(s.emissionDate ?? s.dueDate, hoje)
+        : farolVencimento(s.dueDate, s.status !== "PENDING", hoje),
   }));
 }
 export type ServicoLinha = Awaited<ReturnType<typeof listarServicos>>[number];

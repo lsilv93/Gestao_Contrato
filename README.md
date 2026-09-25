@@ -53,6 +53,15 @@ PDF ou Word (.doc/.docx), versão obrigatória (ex.: v1.0, v2.1), sempre vincula
 ### Serviços & Faturamento
 Tabela com filtros por número da NF, tipo de contrato, transportadora e status. **Quick action:** clique na linha de uma NF pendente, ou no botão **Pago**, para abrir a confirmação com a data de pagamento.
 
+### Ciclo de faturamento e alertas de emissão de NF
+Cada contrato tem **Dia de emissão da NF**, **Dia de vencimento**, **Valor previsto da NF** e **Gerar com X dias de antecedência** (0–20). Nos meses mais curtos, vale o último dia do mês. Quando o dia de vencimento é menor ou igual ao de emissão, o vencimento cai no mês seguinte (`src/domain/cicloFaturamento.ts`).
+- **Geração automática** (`src/server/cicloFaturamento.ts`): todo mês, na data de emissão (ou X dias antes), cada contrato *Vigente* de uma transportadora ativa gera um registro **Pendente de emissão** (`PENDING_EMISSION`), sem número de NF, com a competência `YYYY-MM`. Há no máximo um por contrato e competência (índice único), então rodar a geração de novo nunca duplica.
+- **Quando roda:** o cron diário da Vercel (`vercel.json` → `GET /api/cron/emissao-nf`, às 09:00 UTC) e também a abertura do painel pelo ADM, no máximo uma vez a cada 10 minutos. Assim a pendência aparece mesmo se o cron atrasar.
+- **Farol de emissão:** *A emitir* antes da data, **amarelo** no dia (*Emitir hoje*) e **vermelho** depois dela (*Emissão atrasada*).
+- **Dashboard do ADM:** card *Notas Fiscais Pendentes de Emissão* com transportadora/CNPJ, data limite, valor previsto e o botão **Emitir NF**. O cabeçalho mostra um notificador com a contagem, que fica vermelho e piscando quando há atrasadas.
+- **Emitir NF:** o ADM informa o número da NF, confere o valor e o vencimento e anexa o **PDF ou XML** (obrigatório). O registro passa a **Aguardando pagamento** (`PENDING`) e segue os faróis de pagamento e a regra de inadimplência. O botão **Dispensar** cancela a pendência daquele mês, que não é gerada de novo. Tudo fica na auditoria.
+- O Cliente nunca vê pendências de emissão, só NFs já emitidas.
+
 ### Dashboard
 Filtros **Mês/Ano** ou **Visão geral** e, para o administrador, **Transportadora**. Mostra o valor total de contratos com % e valores PJ x SPOT, as NFs emitidas, pagas, vencidas e pendentes (com totais em R$) e painéis de alerta de Contratos, Licenças (com a transportadora) e Manuais. Os contadores e os itens dos faróis abrem a listagem já filtrada.
 
@@ -135,6 +144,7 @@ Para o Cliente, o parâmetro `transportadora` é ignorado e o resultado vem semp
 2. **Crie um banco novo:** no projeto novo, vá em *Storage → Create Database → Prisma Postgres* (ou *Neon*) e conecte. A integração cria `DATABASE_URL` automaticamente. **Não** reaproveite o banco do outro sistema.
 3. Em *Settings → Environment Variables*, adicione:
    - `AUTH_SECRET`: valor aleatório longo (`openssl rand -base64 32`). **Obrigatória.**
+   - `CRON_SECRET` (recomendada): valor aleatório. A Vercel o envia ao cron diário, e a rota `/api/cron/emissao-nf` recusa chamadas sem ele.
    - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (opcionais): primeiro administrador (o login aceita e-mail ou nome de usuário). O padrão é `admin@consultoria.com.br` / `admin123`.
 4. **Deploy.** O build roda `prisma generate → prisma migrate deploy → prisma db seed → next build` (`scripts/build.mjs`): cria as tabelas, o trigger de auditoria e o administrador.
 5. Entre com o administrador, **troque a senha** em *Minha Senha*, cadastre as **Transportadoras** e depois crie os **acessos Cliente** em *Usuários & Acessos*, vinculando cada um a um CNPJ.
