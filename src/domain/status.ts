@@ -36,17 +36,22 @@ export const rotuloStatusLicenca: Record<LicenseStatus, string> = {
   CLOSED: "Encerrada",
 };
 
-export type SituacaoLicenca = "ATIVA" | "PROXIMA" | "VENCIDA" | LicenseStatus;
+export type SituacaoLicenca = "ATIVA" | "PROXIMA" | "VENCIDA" | "INDETERMINADA" | LicenseStatus;
 const situacaoPorFarol: Record<Farol, SituacaoLicenca> = { VERDE: "ATIVA", AMARELO: "PROXIMA", VERMELHO: "VENCIDA" };
 export const rotuloSituacaoLicenca: Record<SituacaoLicenca, string> = {
   ATIVA: "Ativa",
   PROXIMA: "Próxima de Vencer",
   VENCIDA: "Vencida",
+  INDETERMINADA: "Vigente · Indeterminado",
   ...rotuloStatusLicenca,
 };
 
-/** Ativa / Próxima de Vencer / Vencida para licenças vigentes; senão o status gravado. */
-export function situacaoLicenca(l: { status: LicenseStatus; expirationDate: Date }, hoje: string = diaLocal()): SituacaoLicenca {
+/**
+ * Ativa / Próxima de Vencer / Vencida para documentos vigentes; Indeterminado
+ * para vigentes sem data de validade (AFE / AE); senão o status gravado.
+ */
+export function situacaoLicenca(l: { status: LicenseStatus; expirationDate: Date | null }, hoje: string = diaLocal()): SituacaoLicenca {
+  if (l.status === "CURRENT" && !l.expirationDate) return "INDETERMINADA";
   const farol = farolVencimento(l.expirationDate, l.status !== "CURRENT", hoje);
   return farol ? situacaoPorFarol[farol] : l.status;
 }

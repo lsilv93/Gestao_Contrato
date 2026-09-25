@@ -32,7 +32,7 @@ const grupos: { titulo: string; itens: Item[] }[] = [
     titulo: "Documentos",
     itens: [
       { href: "/contratos", rotulo: "Contratos", icone: FileSignature },
-      { href: "/licencas", rotulo: "Licenças Sanitárias", icone: ShieldPlus },
+      { href: "/licencas", rotulo: "Licenças e Documentos", icone: ShieldPlus },
       { href: "/manuais", rotulo: "Manuais & POPs", icone: BookOpenCheck },
     ],
   },

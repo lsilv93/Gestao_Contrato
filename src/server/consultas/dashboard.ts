@@ -7,6 +7,8 @@ import type { UsuarioAtual } from "../auth";
 import { escopoCarrier } from "../escopo";
 import { prisma } from "../prisma";
 import { carrierResumo, condicaoFarol, param, type Params } from "./filtros";
+import { condicaoCategoria } from "./licencas";
+import type { CategoriaDocumento } from "@/domain/tiposDocumento";
 
 /** Janela das listas de alerta (vencidos + próximos N dias). */
 const JANELA_ALERTA_DIAS = 60;
@@ -50,18 +52,13 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
   ]);
 
   // ---------------- alertas de vencimento (hoje) ----------------
-  const [farolContratos, farolLicencas, farolManuais, alertaContratos, alertaLicencas, alertaManuais] = await Promise.all([
+  const [farolContratos, licencas, documentos, farolManuais, alertaContratos, alertaManuais] = await Promise.all([
     contarFarois((fa) => prisma.contract.count({ where: { ...escopo, status: "ACTIVE", expirationDate: condicaoFarol(fa) } })),
-    contarFarois((fa) => prisma.sanitaryLicense.count({ where: { ...escopo, status: "CURRENT", expirationDate: condicaoFarol(fa) } })),
+    alertasDocumentos(escopo, "LICENCA", janela, hojeTxt),
+    alertasDocumentos(escopo, "DOCUMENTO", janela, hojeTxt),
     contarFarois((fa) => prisma.goodPracticesManual.count({ where: { ...escopo, reviewDate: condicaoFarol(fa) } })),
     prisma.contract.findMany({
       where: { ...escopo, status: "ACTIVE", expirationDate: { lte: janela } },
-      include: { carrier: carrierResumo },
-      orderBy: { expirationDate: "asc" },
-      take: 8,
-    }),
-    prisma.sanitaryLicense.findMany({
-      where: { ...escopo, status: "CURRENT", expirationDate: { lte: janela } },
       include: { carrier: carrierResumo },
       orderBy: { expirationDate: "asc" },
       take: 8,
@@ -86,10 +83,10 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
         farois: farolContratos,
         itens: alertaContratos.map((c) => ({ ...c, amount: Number(c.amount), farol: farolVencimento(c.expirationDate, false, hojeTxt)! })),
       },
-      licencas: {
-        farois: farolLicencas,
-        itens: alertaLicencas.map((l) => ({ ...l, farol: farolVencimento(l.expirationDate, false, hojeTxt)!, situacao: situacaoLicenca(l, hojeTxt) })),
-      },
+      /** Licença Sanitária & Regulatória */
+      licencas,
+      /** Documentos Operacionais & Técnicos */
+      documentos,
       manuais: {
         farois: farolManuais,
         itens: alertaManuais.map((m) => ({ ...m, farol: farolVencimento(m.reviewDate, false, hojeTxt)! })),
@@ -98,6 +95,29 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
   };
 }
 export type Dashboard = Awaited<ReturnType<typeof carregarDashboard>>;
+
+/** Faróis, contador "sem validade" e itens a vencer de uma categoria de Licenças e Documentos. */
+async function alertasDocumentos(escopo: { carrierId?: string }, categoria: CategoriaDocumento, janela: Date, hojeTxt: string) {
+  const base: Prisma.SanitaryLicenseWhereInput = { ...escopo, status: "CURRENT", ...condicaoCategoria(categoria) };
+  const [farois, total, semValidade, itens] = await Promise.all([
+    contarFarois((fa) => prisma.sanitaryLicense.count({ where: { ...base, expirationDate: condicaoFarol(fa) } })),
+    prisma.sanitaryLicense.count({ where: base }),
+    prisma.sanitaryLicense.count({ where: { ...base, expirationDate: null } }),
+    prisma.sanitaryLicense.findMany({
+      where: { ...base, expirationDate: { lte: janela } },
+      include: { carrier: carrierResumo },
+      orderBy: { expirationDate: "asc" },
+      take: 8,
+    }),
+  ]);
+  return {
+    farois,
+    /** documentos vigentes da categoria */
+    total,
+    semValidade,
+    itens: itens.map((l) => ({ ...l, expirationDate: l.expirationDate!, farol: farolVencimento(l.expirationDate, false, hojeTxt)!, situacao: situacaoLicenca(l, hojeTxt) })),
+  };
+}
 
 /** Métricas financeiras do dashboard (somente ADM Geral). */
 async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio: Date; fim: Date } | null, hoje: Date) {

@@ -8,21 +8,34 @@ import { lerArquivo } from "@/server/arquivos";
 import { ErroNegocio } from "@/server/erros";
 import { diaDe, diaLocal } from "@/lib/datas";
 import { rotuloStatusLicenca } from "@/domain/status";
-import { campos, concluir, data, dataOpcional, id, lerId, obrigatorio, opcional } from "./comum";
+import { LISTA_TIPOS_DOCUMENTO, TIPOS_DOCUMENTO, validadeOpcional } from "@/domain/tiposDocumento";
+import type { DocumentType } from "@prisma/client";
+import { campos, concluir, dataOpcional, id, lerId, obrigatorio, opcional } from "./comum";
 import { excluirArquivo, substituirArquivo } from "./documentos";
 import { tratarErro, type Estado } from "./estado";
 
 const BASE = "/licencas";
 
 const camposLicenca = {
-  licenseNumber: obrigatorio("o número da licença", 60),
+  documentType: z.enum(LISTA_TIPOS_DOCUMENTO as [DocumentType, ...DocumentType[]], { error: "Selecione o tipo de documento." }),
+  licenseNumber: obrigatorio("o número do documento", 60),
   issuingBody: opcional(120),
   issueDate: dataOpcional,
-  expirationDate: data("a data de validade"),
+  expirationDate: dataOpcional,
   notes: opcional(2000),
 };
 
-const schemaNova = z.object({ carrierId: id, ...camposLicenca });
+/**
+ * Validade obrigatória, exceto para AFE / AE (prazo indeterminado): vazia,
+ * o documento fica "Sem Validade / Indeterminado" e não entra nos faróis.
+ */
+const exigirValidade = (d: { documentType: DocumentType; expirationDate: Date | null }, ctx: z.RefinementCtx) => {
+  if (!d.expirationDate && !validadeOpcional(d.documentType)) {
+    ctx.addIssue({ code: "custom", path: ["expirationDate"], message: `Informe a data de validade: é obrigatória para ${TIPOS_DOCUMENTO[d.documentType].rotulo}.` });
+  }
+};
+
+const schemaNova = z.object({ carrierId: id, ...camposLicenca }).superRefine(exigirValidade);
 
 /** Cadastro inicial ou correção de dados (a renovação tem fluxo próprio). */
 export async function salvarLicenca(_: Estado, form: FormData): Promise<Estado> {
@@ -32,7 +45,7 @@ export async function salvarLicenca(_: Estado, form: FormData): Promise<Estado> 
     const idAtual = lerId(form);
     const d = schemaNova.parse(campos(form));
     const arquivo = await lerArquivo(form);
-    if (!idAtual && !arquivo) throw new ErroNegocio("Anexe o PDF da licença sanitária.");
+    if (!idAtual && !arquivo) throw new ErroNegocio("Anexe o PDF do documento.");
     const l = await prisma.$transaction(async (tx) => {
       const antes = idAtual ? await tx.sanitaryLicense.findUniqueOrThrow({ where: { id: idAtual } }) : null;
       if (antes && antes.carrierId !== d.carrierId && antes.previousId) {
@@ -44,7 +57,7 @@ export async function salvarLicenca(_: Estado, form: FormData): Promise<Estado> 
       await auditar(tx, { usuario: u, action: idAtual ? "UPDATE" : "CREATE", entityName: "SanitaryLicense", entityId: l.id, details: antes ? { antes, depois: l } : l });
       return l;
     });
-    msg = `Licença ${l.licenseNumber} ${idAtual ? "atualizada" : "cadastrada"}.`;
+    msg = `${TIPOS_DOCUMENTO[l.documentType!].rotulo} ${l.licenseNumber} ${idAtual ? "atualizado(a)" : "cadastrado(a)"}.`;
   } catch (e) {
     return tratarErro(e);
   }
@@ -92,7 +105,7 @@ export async function alterarStatusLicenca(_: Estado, form: FormData): Promise<E
   concluir(form, BASE, msg, abrirRenovacao ? { renovar: idAtual } : undefined);
 }
 
-const schemaRenovacao = z.object(camposLicenca);
+const schemaRenovacao = z.object(camposLicenca).superRefine(exigirValidade);
 
 /**
  * Renovação: a versão atual vira "Renovada" (com o snapshot completo no log) e
@@ -104,9 +117,9 @@ export async function renovarLicenca(_: Estado, form: FormData): Promise<Estado>
     const u = await exigirAdmin();
     const idAnterior = lerId(form) ?? "";
     const d = schemaRenovacao.parse(campos(form));
-    if (diaDe(d.expirationDate) <= diaLocal()) throw new ErroNegocio("A nova validade deve ser posterior a hoje.");
+    if (d.expirationDate && diaDe(d.expirationDate) <= diaLocal()) throw new ErroNegocio("A nova validade deve ser posterior a hoje.");
     const arquivo = await lerArquivo(form);
-    if (!arquivo) throw new ErroNegocio("Anexe o PDF da licença renovada.");
+    if (!arquivo) throw new ErroNegocio("Anexe o PDF do documento renovado.");
     const nova = await prisma.$transaction(async (tx) => {
       const anterior = await tx.sanitaryLicense.findUniqueOrThrow({ where: { id: idAnterior }, include: { next: { select: { id: true } } } });
       if (anterior.next) throw new ErroNegocio("Esta licença já foi renovada.");

@@ -138,7 +138,7 @@ function Celula({ coluna, valor, total }: { coluna: Coluna; valor: Valor | undef
   let texto: string;
   if (v === null || v === "") texto = total ? "" : "—";
   else if (coluna.tipo === "moeda") texto = formatarMoeda(Number(v));
-  else if (coluna.tipo === "data") texto = formatarData(v as Date);
+  else if (coluna.tipo === "data") texto = v instanceof Date ? formatarData(v) : String(v); // ex.: "Sem Validade / Indeterminado"
   else if (coluna.tipo === "numero") texto = formatarNumero(Number(v));
   else texto = String(v);
   const cor = coluna.tipo === "status" ? corStatus(v) : null;

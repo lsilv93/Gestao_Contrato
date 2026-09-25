@@ -69,19 +69,23 @@ export async function popularDemo(prisma, { criarAdmin = false } = {}) {
     TransLog: {
       contratos: [["PJ", "Consultoria regulatória anual 2026", 48000, -200, 165], ["SPOT", "Adequação de câmara fria — projeto", 12500, -30, 1]],
       nfs: [["NF-1001", "PJ", 4000, -40, true], ["NF-1002", "PJ", 4000, -10, false], ["NF-1003", "SPOT", 6250, 0, false], ["NF-1004", "PJ", 4000, 20, false]],
-      licencas: [["LF-35.2026.0001", "VISA Municipal Guarulhos", 120]],
+      licencas: [["CLI", "LF-35.2026.0001", "VISA Municipal Guarulhos", 120]],
+      // documentos de versão única: [tipo, número, órgão, validade (dias a partir de hoje; null = indeterminada)]
+      documentos: [["AFE_MEDICAMENTOS", "AFE-1.02345.9", "ANVISA", null], ["PGR", "PGR-2026-TL", "SESMT TransLog", 200], ["CONTROLE_PRAGAS_VEICULOS", "DDZ-5541", "Dedetizadora Paulista", 1]],
       manuais: [["Manual de Boas Práticas de Transporte", "MANUAL_BPA", "4.1", 90], ["POP 07 — Higienização de baús", "POP", "2.0", -5]],
     },
     "Rápido Cold": {
       contratos: [["PJ", "Gestão de compliance ANVISA", 60000, -300, -2], ["SPOT", "Validação térmica de rotas", 18000, -15, 45]],
       nfs: [["000456", "PJ", 5000, -60, true], ["000457", "PJ", 5000, -30, true], ["000470", "SPOT", 9000, -3, false]],
-      licencas: [["AFE-7.12345.6", "ANVISA", 0]],
+      licencas: [["AFE_CORRELATOS", "AFE-7.12345.6", "ANVISA", 0]],
+      documentos: [["PCMSO", "PCMSO-2026-RC", "Clínica Ocupacional Campinas", -8], ["LIMPEZA_CAIXA_DAGUA", "CX-2026-221", "Higieniza Reservatórios", 50]],
       manuais: [["Plano de Qualificação Térmica", "OTHER", "1.0", 1]],
     },
     "Minas Saúde": {
       contratos: [["PJ", "Assessoria técnica — responsável técnico", 36000, -100, 265]],
       nfs: [["2026/77", "PJ", 3000, -5, true], ["2026/78", "PJ", 3000, 25, false]],
-      licencas: [["LS-MG-2025-889", "VISA Estadual MG", -12]],
+      licencas: [["CRF", "LS-MG-2025-889", "VISA Estadual MG", -12]],
+      documentos: [["CONTROLE_PRAGAS_EMPRESA", "CP-2026-077", "Controle Pragas BH", 90], ["AE_MEDICAMENTOS_CONTROLADOS", "AE-3.00987.1", "ANVISA", null]],
       manuais: [["Manual de Boas Práticas de Armazenagem", "MANUAL_BPA", "3.0", null]],
     },
   };
@@ -127,19 +131,26 @@ export async function popularDemo(prisma, { criarAdmin = false } = {}) {
       });
       await log("CREATE", "FinancialService", s.id, { invoiceNumber: nf });
     }
-    for (const [numero, orgao, venc] of p.licencas) {
+    for (const [tipo, numero, orgao, venc] of p.licencas) {
       // versão anterior renovada (histórico)
       const f0 = await prisma.storedFile.create({ data: { ...pdf(`Licenca ${numero} v1`), uploadedById: admin?.id } });
       const v1 = await prisma.sanitaryLicense.create({
-        data: { carrierId: c.id, licenseNumber: numero, issuingBody: orgao, issueDate: d(venc - 730), expirationDate: d(venc - 365), status: "RENEWED", version: 1, fileId: f0.id },
+        data: { carrierId: c.id, documentType: tipo, licenseNumber: numero, issuingBody: orgao, issueDate: d(venc - 730), expirationDate: d(venc - 365), status: "RENEWED", version: 1, fileId: f0.id },
       });
       const f1 = await prisma.storedFile.create({ data: { ...pdf(`Licenca ${numero} v2`), uploadedById: admin?.id } });
       const v2 = await prisma.sanitaryLicense.create({
-        data: { carrierId: c.id, licenseNumber: numero, issuingBody: orgao, issueDate: d(venc - 365), expirationDate: d(venc), version: 2, previousId: v1.id, fileId: f1.id },
+        data: { carrierId: c.id, documentType: tipo, licenseNumber: numero, issuingBody: orgao, issueDate: d(venc - 365), expirationDate: d(venc), version: 2, previousId: v1.id, fileId: f1.id },
       });
       await log("CREATE", "SanitaryLicense", v1.id, { licenseNumber: numero, version: 1 });
       await log("UPDATE", "SanitaryLicense", v1.id, { operacao: "Renovação — versão arquivada" });
       await log("CREATE", "SanitaryLicense", v2.id, { licenseNumber: numero, version: 2 });
+    }
+    for (const [tipo, numero, orgao, venc] of p.documentos) {
+      const f = await prisma.storedFile.create({ data: { ...pdf(`${tipo} ${numero}`), uploadedById: admin?.id } });
+      const doc = await prisma.sanitaryLicense.create({
+        data: { carrierId: c.id, documentType: tipo, licenseNumber: numero, issuingBody: orgao, issueDate: d((venc ?? 0) - 365), expirationDate: venc === null ? null : d(venc), fileId: f.id },
+      });
+      await log("CREATE", "SanitaryLicense", doc.id, { documentType: tipo, licenseNumber: numero });
     }
     for (const [titulo, cat, versao, revisao] of p.manuais) {
       const f = await prisma.storedFile.create({ data: { ...pdf(titulo), uploadedById: admin?.id } });

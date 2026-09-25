@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { DocumentType } from "@prisma/client";
 import { History, Layers, Plus, RefreshCw, ToggleRight } from "lucide-react";
 import { alterarStatusLicenca, excluirLicenca, renovarLicenca, salvarLicenca } from "@/actions/licencas";
 import { BotaoEditar, BotaoExcluir } from "@/components/Acoes";
@@ -9,7 +10,9 @@ import { FormAcao } from "@/components/FormAcao";
 import { Modal } from "@/components/Modal";
 import { BannerOk, Cabecalho, FarolBadge, LegendaFarol, Painel, StatusBadge, Tabela, Vazio, estiloFarol } from "@/components/ui";
 import clsx from "clsx";
-import { AlertTriangle, CheckCircle2, Clock3 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Infinity as Indeterminado } from "lucide-react";
+import { CamposDocumento } from "@/components/CamposDocumento";
+import { LISTA_TIPOS_DOCUMENTO, SEM_VALIDADE, TIPOS_DOCUMENTO, categoriaDoTipo, rotuloCategoriaDocumento, rotuloTipoDocumento, tiposDaCategoria } from "@/domain/tiposDocumento";
 import { textoPrazo } from "@/domain/farol";
 import { rotuloSituacaoLicenca, rotuloStatusLicenca, situacaoLicenca } from "@/domain/status";
 import { diaDe, formatarData } from "@/lib/datas";
@@ -20,7 +23,7 @@ import { nomeCarrier, param, type Params } from "@/server/consultas/filtros";
 import { buscarLicenca, contarSituacoes, historicoLicenca, lerFiltroLicencas, listarLicencas } from "@/server/consultas/licencas";
 import { opcoesTransportadoras } from "@/server/consultas/transportadoras";
 
-export const metadata = { title: "Licenças Sanitárias" };
+export const metadata = { title: "Licenças e Documentos" };
 const BASE = "/licencas";
 
 export default async function LicencasPage({ searchParams }: { searchParams: Promise<Params> }) {
@@ -40,23 +43,37 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
     renovarId ? buscarLicenca(usuario, renovarId) : null,
     alterarId ? buscarLicenca(usuario, alterarId) : null,
     versoesId ? historicoLicenca(usuario, versoesId) : [],
-    contarSituacoes(usuario, filtro.carrierId),
+    contarSituacoes(usuario, filtro),
   ]);
   const aqui = urlCom(BASE, sp);
 
   return (
     <>
-      <Cabecalho titulo="Licenças Sanitárias (ANVISA)" descricao="Licenças de funcionamento/sanitárias com controle de validade, renovação e histórico de versões.">
+      <Cabecalho titulo="Licenças e Documentos" descricao="Licenças sanitárias e regulatórias e documentos operacionais e técnicos, com controle de validade, renovação e histórico de versões.">
         {admin && (
           <Link href={urlCom(BASE, sp, { novo: "1" })} className="btn-primary" scroll={false}>
-            <Plus className="h-4 w-4" /> Nova licença
+            <Plus className="h-4 w-4" /> Novo documento
           </Link>
         )}
       </Cabecalho>
       <BannerOk mensagem={param(sp, "ok")} />
 
+      {/* categoria: Licença Sanitária & Regulatória x Documentos Operacionais & Técnicos */}
+      <nav className="mb-5 flex flex-wrap gap-2" aria-label="Categoria">
+        {([[undefined, "Todos"], ["LICENCA", rotuloCategoriaDocumento.LICENCA], ["DOCUMENTO", rotuloCategoriaDocumento.DOCUMENTO]] as const).map(([c, rotulo]) => (
+          <Link
+            key={rotulo}
+            href={urlCom(BASE, sp, { categoria: c ?? null, tipo: null })}
+            aria-current={filtro.categoria === c ? "page" : undefined}
+            className={filtro.categoria === c ? "btn-primary btn-sm" : "btn-secondary btn-sm"}
+          >
+            {rotulo}
+          </Link>
+        ))}
+      </nav>
+
       {/* visão geral por situação: clique para filtrar */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {(
           [
             ["VERDE", "Ativas", CheckCircle2],
@@ -66,7 +83,7 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
         ).map(([f, rotulo, Icone]) => (
           <Link
             key={f}
-            href={urlCom(BASE, sp, { farol: filtro.farol === f ? null : f, status: null })}
+            href={urlCom(BASE, sp, { farol: filtro.farol === f ? null : f, status: null, validade: null })}
             aria-current={filtro.farol === f ? "true" : undefined}
             className={clsx("card-sm flex items-center gap-4 p-5", filtro.farol === f && "ring-2 ring-acento/60")}
           >
@@ -79,10 +96,32 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
             </span>
           </Link>
         ))}
+        <Link
+          href={urlCom(BASE, sp, { validade: filtro.semValidade ? null : "INDETERMINADA", farol: null, status: null })}
+          aria-current={filtro.semValidade ? "true" : undefined}
+          className={clsx("card-sm flex items-center gap-4 p-5", filtro.semValidade && "ring-2 ring-acento/60")}
+        >
+          <span className="poco flex h-11 w-11 flex-none items-center justify-center !rounded-2xl text-acento">
+            <Indeterminado className="h-5 w-5" />
+          </span>
+          <span>
+            <span className="label !mb-1 block">Sem validade (AFE / AE)</span>
+            <span className="num text-[22px] font-semibold text-t1">{situacoes.INDETERMINADA}</span>
+          </span>
+        </Link>
       </div>
 
       <FormFiltro>
+        {filtro.categoria && <input type="hidden" name="categoria" value={filtro.categoria} />}
         {admin && <FiltroTransportadora opcoes={transportadoras} valor={filtro.carrierId} />}
+        <Selecao
+          prefixo="filtro"
+          nome="tipo"
+          rotulo="Tipo de documento"
+          valor={filtro.tipo}
+          vazio="Todos"
+          opcoes={(filtro.categoria ? tiposDaCategoria(filtro.categoria) : LISTA_TIPOS_DOCUMENTO).map((t) => ({ valor: t, rotulo: TIPOS_DOCUMENTO[t].rotulo }))}
+        />
         <Selecao
           nome="farol"
           rotulo="Situação"
@@ -95,24 +134,25 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
           ]}
         />
         <Selecao prefixo="filtro" nome="status" rotulo="Status" valor={filtro.status} vazio="Todos" opcoes={Object.entries(rotuloStatusLicenca).map(([valor, rotulo]) => ({ valor, rotulo }))} />
-        <Campo prefixo="filtro" nome="busca" rotulo="Número da licença" valor={filtro.busca} placeholder="Enter para buscar" />
+        <Campo prefixo="filtro" nome="busca" rotulo="Número do documento" valor={filtro.busca} placeholder="Enter para buscar" />
         <label className="poco flex cursor-pointer items-center gap-3 self-end px-4 py-3">
           <input type="checkbox" name="historico" value="1" defaultChecked={filtro.historico} />
           <span className="text-[12px] text-t2">Mostrar versões renovadas</span>
         </label>
       </FormFiltro>
 
-      <Painel titulo={`Licenças (${lista.length})`}>
+      <Painel titulo={`${filtro.categoria ? rotuloCategoriaDocumento[filtro.categoria] : "Licenças e Documentos"} (${lista.length})`}>
         {lista.length === 0 ? (
-          <Vazio>Nenhuma licença encontrada com os filtros atuais.</Vazio>
+          <Vazio>Nenhum documento encontrado com os filtros atuais.</Vazio>
         ) : (
           <Tabela>
             <table className="tabela">
               <thead>
                 <tr>
                   <th>Situação</th>
+                  <th>Tipo</th>
                   <th>Transportadora</th>
-                  <th>Nº da licença</th>
+                  <th>Nº do documento</th>
                   <th>Órgão emissor</th>
                   <th>Validade</th>
                   <th>Versão</th>
@@ -125,7 +165,17 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
                   const ultima = !l.next;
                   return (
                     <tr key={l.id} className={l.status === "RENEWED" ? "opacity-60" : undefined}>
-                      <td><FarolBadge farol={l.farol} rotulo={rotuloSituacaoLicenca[l.situacao]} /></td>
+                      <td>
+                        {l.situacao === "INDETERMINADA" ? (
+                          <StatusBadge status={l.situacao} rotulo={rotuloSituacaoLicenca[l.situacao]} />
+                        ) : (
+                          <FarolBadge farol={l.farol} rotulo={rotuloSituacaoLicenca[l.situacao]} />
+                        )}
+                      </td>
+                      <td>
+                        <p className={clsx("text-[11px] font-semibold", l.documentType ? "text-t1" : "text-ouro")}>{rotuloTipoDocumento(l.documentType)}</p>
+                        <p className="text-[10px] text-t4">{rotuloCategoriaDocumento[categoriaDoTipo(l.documentType)]}</p>
+                      </td>
                       <td>
                         <p className="font-medium text-t1">{nomeCarrier(l.carrier)}</p>
                         <p className="num text-[10px] text-t4">{formatarCnpj(l.carrier.cnpj)}</p>
@@ -133,8 +183,16 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
                       <td className="num font-semibold text-t1">{l.licenseNumber}</td>
                       <td>{l.issuingBody ?? "—"}</td>
                       <td>
-                        <p className="num">{formatarData(l.expirationDate)}</p>
-                        {l.farol && <p className="text-[10px] text-t4">{textoPrazo(l.expirationDate)}</p>}
+                        {l.expirationDate ? (
+                          <>
+                            <p className="num">{formatarData(l.expirationDate)}</p>
+                            {l.farol && <p className="text-[10px] text-t4">{textoPrazo(l.expirationDate)}</p>}
+                          </>
+                        ) : (
+                          <p className="inline-flex items-center gap-1 text-[11px] font-medium text-acento">
+                            <Indeterminado className="h-3.5 w-3.5" /> {SEM_VALIDADE}
+                          </p>
+                        )}
                       </td>
                       <td>
                         <Link href={urlCom(BASE, sp, { versoes: l.id })} className="inline-flex items-center gap-1 text-acento hover:underline" scroll={false} title="Ver histórico de versões">
@@ -159,7 +217,7 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
                             <Link href={`/auditoria?entidade=SanitaryLicense&registro=${l.id}`} className="btn-secondary btn-sm" title="Trilha de auditoria">
                               <History className="h-3.5 w-3.5" />
                             </Link>
-                            {ultima && <BotaoExcluir acao={excluirLicenca} id={l.id} voltar={aqui} descricao={`a licença ${l.licenseNumber} (v${l.version})`} />}
+                            {ultima && <BotaoExcluir acao={excluirLicenca} id={l.id} voltar={aqui} descricao={`o documento ${rotuloTipoDocumento(l.documentType)} ${l.licenseNumber} (v${l.version})`} />}
                           </div>
                         )}
                       </td>
@@ -172,20 +230,21 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
         )}
         <p className="mt-4 text-[11px] text-t3">
           <span className="font-semibold text-t2">Ativa</span> = mais de 1 dia para o vencimento · <span className="font-semibold text-t2">Próxima de Vencer</span> = vence hoje ou amanhã ·{" "}
-          <span className="font-semibold text-t2">Vencida</span> = validade expirada sem renovação.
+          <span className="font-semibold text-t2">Vencida</span> = validade expirada sem renovação ·{" "}
+          <span className="font-semibold text-t2">{SEM_VALIDADE}</span> = AFE / AE sem data de validade (fora dos faróis).
         </p>
         <LegendaFarol />
       </Painel>
 
       {/* ---------- cadastro / edição ---------- */}
       {(novo || editando) && (
-        <Modal titulo={editando ? `Editar licença ${editando.licenseNumber}` : "Nova licença sanitária"} descricao={editando ? "Use para corrigir dados. Para uma nova validade, use Renovar (mantém o histórico)." : undefined} fecharHref={aqui} largo>
-          <FormAcao acao={salvarLicenca} botao={editando ? "Salvar alterações" : "Cadastrar licença"} limpar={false} className="grid gap-4 sm:grid-cols-2">
+        <Modal titulo={editando ? `Editar ${rotuloTipoDocumento(editando.documentType)} ${editando.licenseNumber}` : "Novo documento / licença"} descricao={editando ? "Use para corrigir dados. Para uma nova validade, use Renovar (mantém o histórico)." : undefined} fecharHref={aqui} largo>
+          <FormAcao acao={salvarLicenca} botao={editando ? "Salvar alterações" : "Cadastrar documento"} limpar={false} className="grid gap-4 sm:grid-cols-2">
             {editando && <input type="hidden" name="id" value={editando.id} />}
             <Voltar href={aqui} />
             <Selecao nome="carrierId" rotulo="Transportadora" valor={editando?.carrierId ?? filtro.carrierId} obrigatorio vazio="Selecione..." opcoes={opcoesSelect(transportadoras)} className="sm:col-span-2" />
             <CamposLicenca valores={editando} />
-            <CampoArquivo rotulo="Licença (PDF, até 4 MB)" obrigatorio={!editando} atual={editando?.file} className="sm:col-span-2" />
+            <CampoArquivo rotulo="Documento (PDF, até 4 MB)" obrigatorio={!editando} atual={editando?.file} className="sm:col-span-2" />
             <AreaTexto nome="notes" rotulo="Observações" valor={editando?.notes} className="sm:col-span-2" />
           </FormAcao>
         </Modal>
@@ -194,7 +253,7 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
       {/* ---------- alteração de status ---------- */}
       {alterando && (
         <Modal
-          titulo={`Alterar status / encerrar licença ${alterando.licenseNumber}`}
+          titulo={`Alterar status / encerrar ${rotuloTipoDocumento(alterando.documentType)} ${alterando.licenseNumber}`}
           descricao="O status anterior e os dados atuais da licença ficam gravados na trilha de auditoria. Ao suspender, cancelar ou encerrar, a tela de lançamento da nova licença (novo PDF e nova validade) abre automaticamente em seguida."
           fecharHref={aqui}
         >
@@ -202,7 +261,7 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
             <input type="hidden" name="id" value={alterando.id} />
             <Voltar href={aqui} />
             <div className="poco p-4 text-[12px] text-t2">
-              Situação atual: <StatusBadge status={situacaoLicenca(alterando)} rotulo={rotuloSituacaoLicenca[situacaoLicenca(alterando)]} /> · validade {formatarData(alterando.expirationDate)}
+              Situação atual: <StatusBadge status={situacaoLicenca(alterando)} rotulo={rotuloSituacaoLicenca[situacaoLicenca(alterando)]} /> · validade {alterando.expirationDate ? formatarData(alterando.expirationDate) : SEM_VALIDADE}
             </div>
             <Selecao
               nome="status"
@@ -219,19 +278,19 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
       {/* ---------- renovação (abre automaticamente após troca de status) ---------- */}
       {renovando && (
         <Modal
-          titulo={`Renovar licença ${renovando.licenseNumber}`}
-          descricao={`${nomeCarrier(renovando.carrier)} · versão atual v${renovando.version}, validade ${formatarData(renovando.expirationDate)}. A versão atual será arquivada no histórico e uma nova versão (v${renovando.version + 1}) será criada.`}
+          titulo={`Renovar ${rotuloTipoDocumento(renovando.documentType)} ${renovando.licenseNumber}`}
+          descricao={`${nomeCarrier(renovando.carrier)} · versão atual v${renovando.version}, validade ${renovando.expirationDate ? formatarData(renovando.expirationDate) : SEM_VALIDADE}. A versão atual será arquivada no histórico e uma nova versão (v${renovando.version + 1}) será criada.`}
           fecharHref={aqui}
           largo
         >
           {renovando.next ? (
-            <Vazio>Esta licença já foi renovada.</Vazio>
+            <Vazio>Este documento já foi renovado.</Vazio>
           ) : (
             <FormAcao acao={renovarLicenca} botao={<><RefreshCw className="h-4 w-4" /> Registrar renovação</>} limpar={false} className="grid gap-4 sm:grid-cols-2">
               <input type="hidden" name="id" value={renovando.id} />
               <Voltar href={aqui} />
-              <CamposLicenca valores={{ licenseNumber: renovando.licenseNumber, issuingBody: renovando.issuingBody }} rotuloValidade="Nova data de validade" />
-              <CampoArquivo rotulo="Novo documento da licença (PDF, até 4 MB)" obrigatorio className="sm:col-span-2" />
+              <CamposLicenca valores={{ documentType: renovando.documentType, licenseNumber: renovando.licenseNumber, issuingBody: renovando.issuingBody }} rotuloValidade="Nova data de validade" />
+              <CampoArquivo rotulo="Novo documento (PDF, até 4 MB)" obrigatorio className="sm:col-span-2" />
               <AreaTexto nome="notes" rotulo="Observações" className="sm:col-span-2" />
             </FormAcao>
           )}
@@ -240,9 +299,9 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
 
       {/* ---------- histórico de versões ---------- */}
       {versoesId && (
-        <Modal titulo="Histórico de versões da licença" fecharHref={aqui} largo>
+        <Modal titulo="Histórico de versões do documento" fecharHref={aqui} largo>
           {versoes.length === 0 ? (
-            <Vazio>Licença não encontrada.</Vazio>
+            <Vazio>Documento não encontrado.</Vazio>
           ) : (
             <ol className="space-y-3">
               {versoes.map((v) => {
@@ -251,10 +310,10 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
                   <li key={v.id} className="poco flex flex-wrap items-center justify-between gap-3 p-4">
                     <div>
                       <p className="text-[13px] font-semibold text-t1">
-                        v{v.version} · Licença <span className="num">{v.licenseNumber}</span>
+                        v{v.version} · {rotuloTipoDocumento(v.documentType)} <span className="num">{v.licenseNumber}</span>
                       </p>
                       <p className="text-[11px] text-t3">
-                        {v.issuingBody ?? "Órgão não informado"} · emissão {formatarData(v.issueDate)} · validade {formatarData(v.expirationDate)} · cadastrada em {formatarData(v.createdAt)}
+                        {v.issuingBody ?? "Órgão não informado"} · emissão {formatarData(v.issueDate)} · validade {v.expirationDate ? formatarData(v.expirationDate) : SEM_VALIDADE} · cadastrada em {formatarData(v.createdAt)}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -276,15 +335,15 @@ function CamposLicenca({
   valores,
   rotuloValidade = "Data de validade",
 }: {
-  valores?: { licenseNumber?: string; issuingBody?: string | null; issueDate?: Date | null; expirationDate?: Date } | null;
+  valores?: { documentType?: DocumentType | null; licenseNumber?: string; issuingBody?: string | null; issueDate?: Date | null; expirationDate?: Date | null } | null;
   rotuloValidade?: string;
 }) {
   return (
     <>
-      <Campo nome="licenseNumber" rotulo="Número da licença" valor={valores?.licenseNumber} obrigatorio maxLength={60} />
-      <Campo nome="issuingBody" rotulo="Órgão emissor" valor={valores?.issuingBody} maxLength={120} placeholder="Ex.: ANVISA / VISA Municipal" />
+      <CamposDocumento tipo={valores ? valores.documentType ?? null : undefined} validade={valores?.expirationDate ? diaDe(valores.expirationDate) : ""} rotuloValidade={rotuloValidade} />
+      <Campo nome="licenseNumber" rotulo="Número do documento" valor={valores?.licenseNumber} obrigatorio maxLength={60} />
+      <Campo nome="issuingBody" rotulo="Órgão emissor" valor={valores?.issuingBody} maxLength={120} placeholder="Ex.: ANVISA / VISA / Polícia Federal" />
       <Campo nome="issueDate" rotulo="Data de emissão" type="date" valor={valores?.issueDate ? diaDe(valores.issueDate) : ""} />
-      <Campo nome="expirationDate" rotulo={rotuloValidade} type="date" valor={valores?.expirationDate ? diaDe(valores.expirationDate) : ""} obrigatorio />
     </>
   );
 }

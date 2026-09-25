@@ -9,7 +9,7 @@ export const rotuloEntidade: Record<string, string> = {
   Carrier: "Transportadora",
   Contract: "Contrato",
   FinancialService: "Serviço / NF",
-  SanitaryLicense: "Licença Sanitária",
+  SanitaryLicense: "Licença / Documento",
   GoodPracticesManual: "Manual / POP",
   StoredFile: "Arquivo",
 };

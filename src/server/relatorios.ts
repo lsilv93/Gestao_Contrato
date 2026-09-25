@@ -6,6 +6,8 @@ import { diaDe, diaLocal, diasAte, diaValido, hojeData, paraData, somarDias } fr
 import type { UsuarioAtual } from "./auth";
 import { condicaoFarol, nomeCarrier, param, type Params } from "./consultas/filtros";
 import { escopoCarrier } from "./escopo";
+import { condicaoCategoria } from "./consultas/licencas";
+import { SEM_VALIDADE, categoriaDoTipo, rotuloCategoriaDocumento, rotuloTipoDocumento } from "@/domain/tiposDocumento";
 import { DIAS_BLOQUEIO } from "./pendencias";
 import { prisma } from "./prisma";
 
@@ -16,7 +18,7 @@ export type StatusRelatorio = "EM_DIA" | "A_VENCER" | "VENCIDO" | "PAGO" | "PEND
 export const TIPOS: { valor: TipoRelatorio; rotulo: string; descricao: string; admin?: boolean }[] = [
   { valor: "COMPLIANCE", rotulo: "Relatório Geral de Compliance Sanitário", descricao: "Por transportadora: licença ANVISA vigente, situação, validade e versão do Manual de Boas Práticas." },
   { valor: "FINANCEIRO", rotulo: "Faturamento & Cobranças", descricao: "NFs com tipo de contrato, valor, vencimento, pagamento, status e dias em atraso." },
-  { valor: "LICENCAS", rotulo: "Licenças Sanitárias", descricao: "Licenças (versão mais recente) com órgão emissor, validade e situação." },
+  { valor: "LICENCAS", rotulo: "Licenças e Documentos", descricao: "Licenças e documentos (versão mais recente) com tipo, categoria, órgão emissor, validade e situação." },
   { valor: "MANUAIS", rotulo: "Manuais de Boas Práticas / POPs", descricao: "Documentos com categoria, versão e próxima revisão." },
   { valor: "EXECUTIVO", rotulo: "Visão Geral Executiva", descricao: "Consolidado por transportadora: contratos, faturamento em aberto e vencido, licença e acesso.", admin: true },
 ];
@@ -180,7 +182,8 @@ async function compliance(u: UsuarioAtual, f: FiltroRelatorio): Promise<Relatori
   const carriers = await prisma.carrier.findMany({
     where: escopoCarrierTabela(u, f),
     include: {
-      licenses: { where: { next: { is: null } }, orderBy: { expirationDate: "desc" } },
+      // Licença Sanitária & Regulatória; a vigente mais crítica (validade mais próxima) primeiro
+      licenses: { where: { next: { is: null }, ...condicaoCategoria("LICENCA") }, orderBy: { expirationDate: { sort: "asc", nulls: "last" } } },
       manuals: { orderBy: { createdAt: "desc" } },
     },
     orderBy: { legalName: "asc" },
@@ -194,15 +197,16 @@ async function compliance(u: UsuarioAtual, f: FiltroRelatorio): Promise<Relatori
     const sit = lic ? situacaoLicenca(lic, dia) : null;
     const fa = lic ? farolVencimento(lic.expirationDate, lic.status !== "CURRENT", dia) : null;
     if (farolFiltro && fa !== farolFiltro) continue;
-    if (venc && (!lic || (venc.gte && lic.expirationDate < venc.gte) || (venc.lte && lic.expirationDate > venc.lte))) continue;
+    const validade = lic?.expirationDate ?? null;
+    if (venc && (!validade || (venc.gte && validade < venc.gte) || (venc.lte && validade > venc.lte))) continue;
     const bpa = c.manuals.find((m) => m.category === "MANUAL_BPA") ?? null;
     linhas.push({
       transportadora: nomeCarrier(c),
       cnpj: cnpjFmt(c.cnpj),
-      licenca: lic?.licenseNumber ?? "Sem licença cadastrada",
+      licenca: lic ? `${rotuloTipoDocumento(lic.documentType)} ${lic.licenseNumber}` : "Sem licença cadastrada",
       statusLicenca: sit ? rotuloSituacaoLicenca[sit] : "—",
-      validade: lic?.expirationDate ?? null,
-      diasValidade: lic ? diasAte(lic.expirationDate, dia) : null,
+      validade: validade ?? (lic ? SEM_VALIDADE : null),
+      diasValidade: validade ? diasAte(validade, dia) : null,
       manual: bpa ? bpa.version : "Sem manual",
       revisao: bpa?.reviewDate ?? null,
       pops: c.manuals.filter((m) => m.category === "POP").length,
@@ -213,7 +217,7 @@ async function compliance(u: UsuarioAtual, f: FiltroRelatorio): Promise<Relatori
     colunas: [
       COL.transportadora,
       COL.cnpj,
-      { chave: "licenca", titulo: "Licença ANVISA", tipo: "texto", largura: 22 },
+      { chave: "licenca", titulo: "Licença Sanitária / Regulatória", tipo: "texto", largura: 34 },
       { chave: "statusLicenca", titulo: "Status da Licença", tipo: "status", largura: 18 },
       { chave: "validade", titulo: "Data de Validade", tipo: "data", largura: 16 },
       { chave: "diasValidade", titulo: "Dias p/ Vencer", tipo: "numero", largura: 14 },
@@ -239,15 +243,17 @@ async function licencas(u: UsuarioAtual, f: FiltroRelatorio): Promise<Relatorio>
       ...(venc ? { expirationDate: venc } : {}),
     },
     include: { carrier: { select: { cnpj: true, legalName: true, tradeName: true } } },
-    orderBy: { expirationDate: "asc" },
+    orderBy: [{ expirationDate: { sort: "asc", nulls: "last" } }],
   });
   const dia = diaLocal();
   return {
-    titulo: "Relatório de Licenças Sanitárias",
+    titulo: "Relatório de Licenças e Documentos",
     colunas: [
       COL.transportadora,
       COL.cnpj,
-      { chave: "numero", titulo: "Nº da Licença", tipo: "texto", largura: 20 },
+      { chave: "categoria", titulo: "Categoria", tipo: "texto", largura: 30 },
+      { chave: "tipoDoc", titulo: "Tipo de Documento", tipo: "texto", largura: 34 },
+      { chave: "numero", titulo: "Nº do Documento", tipo: "texto", largura: 20 },
       { chave: "orgao", titulo: "Órgão Emissor", tipo: "texto", largura: 24 },
       { chave: "emissao", titulo: "Emissão", tipo: "data", largura: 14 },
       { chave: "validade", titulo: "Validade", tipo: "data", largura: 14 },
@@ -258,13 +264,15 @@ async function licencas(u: UsuarioAtual, f: FiltroRelatorio): Promise<Relatorio>
     linhas: lista.map((l) => ({
       transportadora: nomeCarrier(l.carrier),
       cnpj: cnpjFmt(l.carrier.cnpj),
+      categoria: rotuloCategoriaDocumento[categoriaDoTipo(l.documentType)],
+      tipoDoc: rotuloTipoDocumento(l.documentType),
       numero: l.licenseNumber,
       orgao: l.issuingBody,
       emissao: l.issueDate,
-      validade: l.expirationDate,
+      validade: l.expirationDate ?? SEM_VALIDADE,
       versao: l.version,
       situacao: rotuloSituacaoLicenca[situacaoLicenca(l, dia)],
-      dias: diasAte(l.expirationDate, dia),
+      dias: l.expirationDate ? diasAte(l.expirationDate, dia) : null,
     })),
     avisos,
   };
@@ -326,7 +334,7 @@ async function executivo(u: UsuarioAtual, f: FiltroRelatorio): Promise<Relatorio
     include: {
       contracts: { where: { status: "ACTIVE" }, select: { amount: true } },
       services: { where: { status: "PENDING", ...(venc ? { dueDate: venc } : {}) }, select: { amount: true, dueDate: true } },
-      licenses: { where: { status: "CURRENT" }, orderBy: { expirationDate: "asc" }, take: 1 },
+      licenses: { where: { status: "CURRENT", ...condicaoCategoria("LICENCA") }, orderBy: { expirationDate: { sort: "asc", nulls: "last" } }, take: 1 },
       _count: { select: { manuals: true } },
     },
     orderBy: { legalName: "asc" },

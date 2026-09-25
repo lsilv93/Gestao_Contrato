@@ -1,6 +1,6 @@
 # L&K Assessoria Farmacêutica — Gestão de Contratos / Compliance
 
-Web App da consultoria para gerir **Contratos (PJ/SPOT)**, **Licenças Sanitárias (ANVISA/VISA)**, **Manuais de Boas Práticas & POPs** e **Serviços/Faturamento (NFs)** dos clientes transportadores. Tem trilha de auditoria imutável e controle de acesso por perfil, amarrado ao CNPJ.
+Web App da consultoria para gerir **Contratos (PJ/SPOT)**, **Licenças e Documentos** (licenças sanitárias/regulatórias e documentos operacionais/técnicos), **Manuais de Boas Práticas & POPs** e **Serviços/Faturamento (NFs)** dos clientes transportadores. Tem trilha de auditoria imutável e controle de acesso por perfil, amarrado ao CNPJ.
 
 **Stack:** Next.js 15 (App Router, Server Actions) · React 19 · Tailwind CSS · Prisma 6 · PostgreSQL · pronto para a **Vercel**.
 
@@ -41,10 +41,16 @@ A antecedência do alerta amarelo está na constante `DIAS_ALERTA` (hoje = 1). R
 ### Trilha de auditoria (`src/server/auditoria.ts`)
 Toda inclusão, edição ou exclusão grava, **na mesma transação**, um registro com ID da ação (**UUID** gerado pelo PostgreSQL), ID e nome do usuário, data/hora exata (`timestamptz`, exibida também em ISO 8601), tipo (CREATE/UPDATE/DELETE), entidade, ID do registro afetado e detalhes (antes/depois). A imutabilidade é garantida **no banco**: um trigger PostgreSQL bloqueia `UPDATE`, `DELETE` e `TRUNCATE` na tabela `audit_logs`.
 
-### Licenças Sanitárias (renovação com histórico)
+### Licenças e Documentos (tipos, validade e renovação com histórico)
+- **Tipo de documento** (obrigatório, `enum DocumentType`, regras em `src/domain/tiposDocumento.ts`), agrupado em duas categorias:
+  - **Licença Sanitária & Regulatória:** CERTIDÃO DE REGULARIDADE (CRF), AFE COSMÉTICOS, AFE CORRELATOS, AFE MEDICAMENTOS, AFE SANEANTES, AE MEDICAMENTOS CONTROLADOS, CLI, AVCB, LICENÇA POLÍCIA FEDERAL e LICENÇA POLÍCIA CIVIL.
+  - **Documentos Operacionais & Técnicos:** PGR, PCMSO, CERTIFICADO DE LIMPEZA DE CAIXA D’ÁGUA, CONTROLE DE PRAGAS EMPRESA e CONTROLE DE PRAGAS VEÍCULOS.
+- **Validade:** opcional para **AFE** e **AE** (vazia = *Sem Validade / Indeterminado*, fora dos faróis) e obrigatória para os demais tipos. A regra vale no formulário (o campo muda conforme o tipo), no servidor (Zod) e no banco (`CHECK sanitary_licenses_validade_obrigatoria`).
+- **Registros antigos** (cadastrados antes dos tipos) aparecem como *NÃO CLASSIFICADO*, contam como Licença Sanitária e pedem a classificação na próxima edição.
+- **Dashboard:** cards e painéis de alerta separados para as duas categorias, com contadores de vencidos, próximos de vencer, ativos e sem validade. A tela e o relatório também filtram por categoria e por tipo.
 - **Renovar:** a versão atual passa a *Renovada*, com o snapshot completo gravado no log, e é criada uma nova versão (`version + 1`, `previousId` apontando para a anterior) com o novo PDF e a nova validade. O PDF antigo continua no histórico.
 - **Alterar status / Encerrar** (Suspensa, Cancelada ou Encerrada): grava o histórico no log e **abre automaticamente** o modal de lançamento da nova licença (novo PDF + nova validade).
-- **Visão por situação:** contadores clicáveis *Ativas*, *Próximas de Vencer* e *Vencidas* no topo da tela de licenças.
+- **Visão por situação:** contadores clicáveis *Ativas*, *Próximas de Vencer*, *Vencidas* e *Sem validade (AFE / AE)* no topo da tela.
 - **Histórico de versões:** clique em `vN` na tabela (disponível também para o Cliente).
 
 ### Manuais & POPs
@@ -80,7 +86,7 @@ Menu **Relatórios** (ADM e Cliente). Filtros: período (data inicial/final), tr
 |---|---|
 | Relatório Geral de Compliance Sanitário | Transportadora, CNPJ, licença ANVISA, status, validade, dias p/ vencer, versão do Manual BPA, próxima revisão, nº de POPs |
 | Faturamento & Cobranças | Transportadora, NF, tipo PJ/SPOT, valor, vencimento, pagamento, status, dias em atraso (+ total) |
-| Licenças Sanitárias / Manuais & POPs | Listas detalhadas com situação pelo farol |
+| Licenças e Documentos / Manuais & POPs | Listas detalhadas com situação pelo farol |
 | Visão Geral Executiva (ADM) | Por transportadora: contratos vigentes e valor, NFs em aberto/vencidas e valores, maior atraso, licença, manuais, acesso liberado/bloqueado |
 
 Cliente: sempre e só o próprio CNPJ; no financeiro, apenas cobranças em aberto/atraso e sem valores; sem visão executiva.

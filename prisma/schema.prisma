@@ -49,6 +49,26 @@ enum LicenseStatus {
   CLOSED     // Encerrada
 }
 
+/// Tipos do módulo "Licenças e Documentos". Categoria e obrigatoriedade da
+/// validade ficam em src/domain/tiposDocumento.ts (AFE/AE: validade opcional).
+enum DocumentType {
+  CRF                          // Certidão de Regularidade (CRF)
+  AFE_COSMETICOS
+  AFE_CORRELATOS
+  AFE_MEDICAMENTOS
+  AFE_SANEANTES
+  AE_MEDICAMENTOS_CONTROLADOS
+  CLI
+  AVCB
+  LICENCA_POLICIA_FEDERAL
+  LICENCA_POLICIA_CIVIL
+  PGR
+  PCMSO
+  LIMPEZA_CAIXA_DAGUA
+  CONTROLE_PRAGAS_EMPRESA
+  CONTROLE_PRAGAS_VEICULOS
+}
+
 enum ManualCategory {
   MANUAL_BPA // Manual de Boas Práticas
   POP        // Procedimento Operacional Padrão
@@ -176,10 +196,13 @@ model SanitaryLicense {
   id             String        @id @default(cuid())
   carrierId      String
   carrier        Carrier       @relation(fields: [carrierId], references: [id], onDelete: Restrict)
+  /// Tipo do documento (vazio = registro anterior à classificação; o formulário exige).
+  documentType   DocumentType?
   licenseNumber  String
   issuingBody    String?
   issueDate      DateTime?     @db.Date
-  expirationDate DateTime      @db.Date
+  /// Vazia = "Sem Validade / Indeterminado" (permitido só para AFE/AE — CHECK no banco).
+  expirationDate DateTime?     @db.Date
   status         LicenseStatus @default(CURRENT)
   version        Int           @default(1)
   notes          String?
@@ -194,6 +217,7 @@ model SanitaryLicense {
 
   @@index([carrierId])
   @@index([expirationDate])
+  @@index([documentType])
   @@map("sanitary_licenses")
 }
 

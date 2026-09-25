@@ -169,6 +169,7 @@ const estiloStatus: Record<string, string> = {
   CURRENT: "text-ok bg-ok/10",
   ATIVA: "text-ok bg-ok/10",
   PROXIMA: "text-ouro bg-ouro/10",
+  INDETERMINADA: "text-acento bg-acento/10",
   VENCIDA: "text-erro bg-erro/10",
   RENEWED: "text-acento bg-acento/10",
   SUSPENDED: "text-ouro bg-ouro/10",

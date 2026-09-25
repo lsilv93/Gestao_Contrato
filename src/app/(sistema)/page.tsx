@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, BadgeCheck, FileUp, FileWarning, BookOpenCheck, CircleDollarSign, Clock3, FileSignature, ReceiptText, ShieldPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, BadgeCheck, FileUp, FileWarning, BookOpenCheck, CircleDollarSign, Clock3, ClipboardList, FileSignature, Infinity as Indeterminado, ReceiptText, ShieldPlus } from "lucide-react";
+import { rotuloCategoriaDocumento, rotuloTipoDocumento, type CategoriaDocumento } from "@/domain/tiposDocumento";
 import { FormFiltro } from "@/components/Filtros";
 import { FiltroTransportadora } from "@/components/FiltroTransportadora";
 import { Barra, Cabecalho, ContadoresFarol, FarolBadge, Indicador, LegendaFarol, Painel, Vazio } from "@/components/ui";
@@ -79,9 +80,40 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </>
       )}
 
+      {/* ---------------- licenças x documentos: contadores segregados ---------------- */}
+      <h2 className="secao mb-3">Licenças e Documentos — situação hoje</h2>
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <ResumoCategoria categoria="LICENCA" dados={d.alertas.licencas} icone={<ShieldPlus className="h-5 w-5" />} comTransp={comTransp} />
+        <ResumoCategoria categoria="DOCUMENTO" dados={d.alertas.documentos} icone={<ClipboardList className="h-5 w-5" />} comTransp={comTransp} />
+      </div>
+
       {/* ---------------- alertas de vencimento ---------------- */}
       <h2 className="secao mb-3">Alertas de vencimento — situação hoje</h2>
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-2">
+        {(
+          [
+            ["LICENCA", d.alertas.licencas, <ShieldPlus key="l" className="h-4 w-4 text-acento" />, "Nenhuma licença sanitária ou regulatória vencida ou a vencer nos próximos 60 dias."],
+            ["DOCUMENTO", d.alertas.documentos, <ClipboardList key="d" className="h-4 w-4 text-acento" />, "Nenhum documento operacional ou técnico vencido ou a vencer nos próximos 60 dias."],
+          ] as const
+        ).map(([categoria, dados, icone, vazio]) => (
+          <PainelAlerta
+            key={categoria}
+            titulo={rotuloCategoriaDocumento[categoria]}
+            icone={icone}
+            farois={dados.farois}
+            verTodas={comTransp("/licencas", { categoria })}
+            href={(fa) => comTransp("/licencas", { categoria, farol: fa })}
+            vazio={vazio}
+            itens={dados.itens.map((l) => ({
+              id: l.id,
+              href: comTransp("/licencas", { categoria, farol: l.farol }),
+              titulo: `${rotuloTipoDocumento(l.documentType)} · ${l.licenseNumber}`,
+              sub: `${nomeCarrier(l.carrier)} · ${rotuloSituacaoLicenca[l.situacao]}`,
+              data: l.expirationDate,
+              farol: l.farol,
+            }))}
+          />
+        ))}
         <PainelAlerta
           titulo="Contratos"
           icone={<FileSignature className="h-4 w-4 text-acento" />}
@@ -96,22 +128,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             sub: `${nomeCarrier(c.carrier)} · ${c.contractType}`,
             data: c.expirationDate,
             farol: c.farol,
-          }))}
-        />
-        <PainelAlerta
-          titulo="Licenças Sanitárias"
-          icone={<ShieldPlus className="h-4 w-4 text-acento" />}
-          farois={d.alertas.licencas.farois}
-          verTodas={comTransp("/licencas", {})}
-          href={(fa) => comTransp("/licencas", { farol: fa })}
-          vazio="Nenhuma licença vencida ou a vencer nos próximos 60 dias."
-          itens={d.alertas.licencas.itens.map((l) => ({
-            id: l.id,
-            href: comTransp("/licencas", { farol: l.farol }),
-            titulo: `Licença ${l.licenseNumber}`,
-            sub: `${nomeCarrier(l.carrier)} · ${rotuloSituacaoLicenca[l.situacao]}`,
-            data: l.expirationDate,
-            farol: l.farol,
           }))}
         />
         <PainelAlerta
@@ -133,6 +149,53 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </div>
       <LegendaFarol />
     </>
+  );
+}
+
+/** Card de contadores de uma categoria (Licenças Sanitárias x Documentos Operacionais). */
+function ResumoCategoria({
+  categoria,
+  dados,
+  icone,
+  comTransp,
+}: {
+  categoria: CategoriaDocumento;
+  dados: Dashboard["alertas"]["licencas"];
+  icone: React.ReactNode;
+  comTransp: (base: string, extra: Record<string, string>) => string;
+}) {
+  const itens: { rotulo: string; valor: number; cor: string; extra: Record<string, string> }[] = [
+    { rotulo: "Vencidos", valor: dados.farois.VERMELHO, cor: "text-erro", extra: { farol: "VERMELHO" } },
+    { rotulo: "Próximos de vencer", valor: dados.farois.AMARELO, cor: "text-ouro", extra: { farol: "AMARELO" } },
+    { rotulo: "Ativos", valor: dados.farois.VERDE, cor: "text-ok", extra: { farol: "VERDE" } },
+    ...(categoria === "LICENCA" ? [{ rotulo: "Sem validade", valor: dados.semValidade, cor: "text-acento", extra: { validade: "INDETERMINADA" } }] : []),
+  ];
+  return (
+    <section className="card p-5" aria-label={rotuloCategoriaDocumento[categoria]}>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="poco flex h-10 w-10 flex-none items-center justify-center !rounded-2xl text-acento">{icone}</span>
+          <div>
+            <p className="text-[13px] font-semibold text-t1">{rotuloCategoriaDocumento[categoria]}</p>
+            <p className="text-[11px] text-t3">{formatarNumero(dados.total)} vigente(s)</p>
+          </div>
+        </div>
+        <Link href={comTransp("/licencas", { categoria })} className="btn-secondary btn-sm" aria-label={`Ver todos: ${rotuloCategoriaDocumento[categoria]}`}>
+          Ver todos <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+      <div className={`grid gap-2 ${itens.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+        {itens.map((i) => (
+          <Link key={i.rotulo} href={comTransp("/licencas", { categoria, ...i.extra })} className="poco px-3 py-3 transition-colors hover:bg-acento/5">
+            <p className={`num text-[20px] font-semibold ${i.cor}`}>{formatarNumero(i.valor)}</p>
+            <p className="flex items-center gap-1 text-[10px] text-t3">
+              {i.rotulo === "Sem validade" && <Indeterminado className="h-3 w-3" />}
+              {i.rotulo}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
