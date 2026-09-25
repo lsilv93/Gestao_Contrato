@@ -494,6 +494,18 @@
 .cam-pisca {
   animation: cam-pisca 1s steps(2, jump-none) infinite;
 }
+.cam-farol {
+  animation: cam-farol 2.2s ease-in-out infinite;
+}
+@keyframes cam-farol {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
 .cam-anda {
   animation: cam-anda 0.9s ease-in-out infinite alternate;
 }
