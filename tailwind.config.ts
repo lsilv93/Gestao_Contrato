@@ -1,6 +1,6 @@
 import type { Config } from "tailwindcss";
 
-// Soft UI — neomorfismo navy com acento verde-água (saúde / ANVISA).
+// MB Soft UI — neomorfismo navy com acento lima.
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {

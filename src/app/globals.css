@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ============================================================
-   Soft UI — neomorfismo navy · acento verde-água
+   Soft UI — neomorfismo navy · acento lima
    Regra de hierarquia: só o nível externo (cards) é saliente;
    tudo dentro de um card é afundado.
    ============================================================ */
@@ -11,9 +11,9 @@
 [data-theme="dark"] {
   /* cores (RGB) — usadas pelo Tailwind com suporte a opacidade */
   --c-fundo: 10 27 41;
-  --c-acento: 45 212 191;
-  --c-ok: 74 222 128;
-  --c-acento-hover: 94 234 212;
+  --c-acento: 190 249 27;
+  --c-ok: 190 249 27;
+  --c-acento-hover: 212 255 94;
   --c-ouro: 232 197 71;
   --c-ouro-rotulo: 200 169 74;
   --c-erro: 255 107 107;
@@ -36,18 +36,18 @@
   --in-l: rgba(52, 90, 120, 0.2);
   --rec-d: rgba(0, 4, 8, 0.55);
   --rec-l: rgba(52, 90, 120, 0.13);
-  --halo: rgba(45, 212, 191, 0.5);
+  --halo: rgba(190, 249, 27, 0.5);
   --sulco: rgba(43, 74, 99, 0.35);
   color-scheme: dark;
 }
 
 /* Tema claro: mesma linguagem soft UI sobre base cinza-azulada; o acento de
-   texto vira oliva escuro para manter contraste 4.5:1 (verde-água claro só em preenchimentos). */
+   texto vira oliva escuro para manter contraste 4.5:1 (lima só em preenchimentos). */
 [data-theme="light"] {
   --c-fundo: 226 232 239;
-  --c-acento: 15 118 110;
-  --c-ok: 21 128 61;
-  --c-acento-hover: 13 148 136;
+  --c-acento: 69 110 0;
+  --c-ok: 69 110 0;
+  --c-acento-hover: 88 138 0;
   --c-ouro: 128 94 0;
   --c-ouro-rotulo: 128 94 0;
   --c-erro: 196 40 40;
@@ -70,7 +70,7 @@
   --in-l: rgba(255, 255, 255, 0.9);
   --rec-d: rgba(136, 156, 178, 0.5);
   --rec-l: rgba(255, 255, 255, 0.8);
-  --halo: rgba(13, 148, 136, 0.55);
+  --halo: rgba(110, 160, 0, 0.55);
   --sulco: rgba(120, 142, 165, 0.35);
   color-scheme: light;
 }
@@ -79,14 +79,21 @@
   --sombra-card: 12px 12px 26px var(--neu-d), -9px -9px 22px var(--neu-l);
   --sombra-sm: 8px 8px 17px var(--neu-d), -6px -6px 15px var(--neu-l);
   --sombra-xs: 5px 5px 11px var(--neu-d), -4px -4px 10px var(--neu-l);
-  --sombra-hover: 14px 14px 30px var(--neu-d), -10px -10px 26px var(--neu-l), 0 0 30px -10px rgba(45, 212, 191, 0.35);
+  /* hover de card: sobe + halo do acento */
+  --sombra-hover: 14px 14px 30px rgba(0, 4, 8, 0.7), -10px -10px 26px rgba(58, 100, 132, 0.3), 0 0 30px -10px rgba(190, 249, 27, 0.35);
   --sombra-afundado: inset 4px 4px 9px var(--in-d), inset -3px -3px 8px var(--in-l);
   --sombra-recesso: inset 5px 5px 12px var(--rec-d), inset -3px -3px 9px var(--rec-l);
-  --sombra-foco: inset 5px 5px 11px var(--in-d), inset -4px -4px 10px var(--in-l), 0 0 0 2px var(--halo);
+  --sombra-foco: inset 5px 5px 11px rgba(0, 4, 8, 0.7), inset -4px -4px 10px rgba(52, 90, 120, 0.22), 0 0 0 2px var(--halo);
   --sombra-ativa: 4px 4px 9px var(--neu-d), -3px -3px 8px var(--neu-l);
-  --acento: #2dd4bf;
+  --acento: #bef91b;
   --mono: ui-monospace, Menlo, monospace;
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* tema claro: relevo e foco com as luzes/sombras da base clara */
+[data-theme="light"] {
+  --sombra-hover: 14px 14px 30px var(--neu-d), -10px -10px 26px var(--neu-l), 0 0 30px -10px rgba(110, 160, 0, 0.3);
+  --sombra-foco: inset 5px 5px 11px var(--in-d), inset -4px -4px 10px var(--in-l), 0 0 0 2px var(--halo);
 }
 
 @layer base {
@@ -99,7 +106,7 @@
     -webkit-font-smoothing: antialiased;
   }
   ::selection {
-    background: rgba(45, 212, 191, 0.3);
+    background: rgba(190, 249, 27, 0.3);
   }
   input[type="checkbox"] {
     appearance: none;
@@ -118,7 +125,7 @@
   }
   input[type="checkbox"]:checked {
     background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><path d='M5.5 10.5l3 3 6-7' fill='none' stroke='%23000E19' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 20px 20px no-repeat,
-      linear-gradient(145deg, #5eead4, #14b8a6);
+      linear-gradient(145deg, #d0ff45, #a9e113);
     box-shadow: 2px 2px 5px var(--neu-d), -2px -2px 4px var(--neu-l);
   }
   /* itens de grid podem encolher (tabelas rolam dentro do próprio painel) */
@@ -168,7 +175,7 @@
   /* preenchimento acento (igual nos dois temas); tinta sempre escura */
   .fill-acento {
     color: #000e19;
-    background: linear-gradient(145deg, #5eead4, #14b8a6);
+    background: linear-gradient(145deg, #d0ff45, #a9e113);
     box-shadow: var(--sombra-xs);
   }
   .sulco {
@@ -224,7 +231,7 @@
     background-position: right 16px center !important;
   }
   select.input:hover {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1.5l5 5 5-5' fill='none' stroke='%232DD4BF' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>") !important;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1.5l5 5 5-5' fill='none' stroke='%23BEF91B' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>") !important;
   }
   select.input option {
     background: var(--opcao);
@@ -255,11 +262,11 @@
   .btn-primary {
     @apply btn;
     color: #000e19;
-    background: linear-gradient(145deg, #5eead4, #14b8a6);
+    background: linear-gradient(145deg, #d0ff45, #a9e113);
     box-shadow: var(--sombra-xs);
   }
   .btn-primary:hover:not(:disabled) {
-    background: linear-gradient(145deg, #99f6e4, #2dd4bf);
+    background: linear-gradient(145deg, #dcff72, #bef91b);
   }
   .btn-secondary {
     @apply btn;
@@ -326,11 +333,11 @@
   }
   .aba-ativa {
     color: #000e19;
-    background: linear-gradient(145deg, #5eead4, #14b8a6);
+    background: linear-gradient(145deg, #d0ff45, #a9e113);
     box-shadow: var(--sombra-ativa);
   }
   .aba-ativa:hover {
-    background: linear-gradient(145deg, #99f6e4, #2dd4bf);
+    background: linear-gradient(145deg, #dcff72, #bef91b);
   }
   @media (max-width: 819px) {
     .abas {
@@ -436,10 +443,10 @@
 @keyframes pulso {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.55);
+    box-shadow: 0 0 0 0 rgba(190, 249, 27, 0.55);
   }
   50% {
-    box-shadow: 0 0 0 5px rgba(45, 212, 191, 0);
+    box-shadow: 0 0 0 5px rgba(190, 249, 27, 0);
   }
 }
 @keyframes pulso-erro {
