@@ -3,7 +3,7 @@ import { ShieldCheck } from "lucide-react";
 import { entrar } from "@/actions/auth";
 import { BotaoTema } from "@/components/BotaoTema";
 import { FormAcao } from "@/components/FormAcao";
-import { modoDemo } from "@/lib/modo";
+import { diagnosticoBanco, modoDemo } from "@/lib/modo";
 
 export const metadata: Metadata = { title: "Entrar" };
 
@@ -30,6 +30,7 @@ export default function LoginPage() {
             Administrador: <b className="text-t1">admin@consultoria.com.br</b> / <b className="text-t1">admin123</b>
             <br />
             Cliente: <b className="text-t1">cliente@translog.com.br</b> / <b className="text-t1">cliente123</b>
+            <p className="mt-2 break-words text-[10px] text-t3">Banco: {diagnosticoBanco()}</p>
           </div>
         )}
         <FormAcao acao={entrar} botao="Entrar" classeBotao="btn-primary w-full" limpar={false}>
