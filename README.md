@@ -109,7 +109,7 @@ Para o Cliente, o parâmetro `transportadora` é ignorado e o resultado vem semp
 2. **Crie um banco novo:** no projeto novo, vá em *Storage → Create Database → Prisma Postgres* (ou *Neon*) e conecte. A integração cria `DATABASE_URL` automaticamente. **Não** reaproveite o banco do outro sistema.
 3. Em *Settings → Environment Variables*, adicione:
    - `AUTH_SECRET`: valor aleatório longo (`openssl rand -base64 32`). **Obrigatória.**
-   - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (opcionais): primeiro administrador. O padrão é `admin@consultoria.com.br` / `admin123`.
+   - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (opcionais): primeiro administrador (o login aceita e-mail ou nome de usuário). O padrão é `admin@consultoria.com.br` / `admin123`.
 4. **Deploy.** O build roda `prisma generate → prisma migrate deploy → prisma db seed → next build` (`scripts/build.mjs`): cria as tabelas, o trigger de auditoria e o administrador.
 5. Entre com o administrador, **troque a senha** em *Minha Senha*, cadastre as **Transportadoras** e depois crie os **acessos Cliente** em *Usuários & Acessos*, vinculando cada um a um CNPJ.
 

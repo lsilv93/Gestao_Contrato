@@ -7,7 +7,7 @@ import { exigirAdmin } from "@/server/auth";
 import { auditar } from "@/server/auditoria";
 import { ErroNegocio } from "@/server/erros";
 import { normalizarCnpj } from "@/lib/formatos";
-import { campos, concluir, email, lerId, obrigatorio } from "./comum";
+import { campos, concluir, lerId, login, obrigatorio } from "./comum";
 import { tratarErro, type Estado } from "./estado";
 
 const BASE = "/usuarios";
@@ -15,7 +15,7 @@ const BASE = "/usuarios";
 const schema = z
   .object({
     name: obrigatorio("o nome", 120),
-    email,
+    email: login,
     role: z.enum(["ADMIN", "CLIENT"]),
     carrierCnpj: z
       .string()
@@ -37,7 +37,7 @@ export async function salvarUsuario(_: Estado, form: FormData): Promise<Estado> 
       throw new ErroNegocio("CNPJ não encontrado entre as transportadoras cadastradas.");
     }
     const dup = await prisma.user.findUnique({ where: { email: d.email } });
-    if (dup && dup.id !== id) throw new ErroNegocio(`O e-mail ${d.email} já está em uso.`);
+    if (dup && dup.id !== id) throw new ErroNegocio(`O login ${d.email} já está em uso.`);
 
     const dados = { ...d, ...(senha ? { passwordHash: await bcrypt.hash(senha, 10) } : {}) };
     const usuario = await prisma.$transaction(async (tx) => {

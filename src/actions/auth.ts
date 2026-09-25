@@ -13,12 +13,12 @@ import { falha, sucesso, tratarErro, type Estado } from "./estado";
 export async function entrar(_: Estado, form: FormData): Promise<Estado> {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const senha = String(form.get("senha") ?? "");
-  if (!email || !senha) return falha("Informe e-mail e senha.");
+  if (!email || !senha) return falha("Informe usuário/e-mail e senha.");
 
   const registro = await prisma.user.findUnique({ where: { email } });
   const valido = registro && (await bcrypt.compare(senha, registro.passwordHash));
   const usuario = valido ? await carregarUsuario(registro.id) : null;
-  if (!usuario) return falha("E-mail ou senha inválidos, ou acesso inativo.");
+  if (!usuario) return falha("Usuário/e-mail ou senha inválidos, ou acesso inativo.");
 
   const token = await signSession({
     sub: usuario.id,

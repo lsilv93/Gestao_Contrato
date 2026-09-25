@@ -24,6 +24,17 @@ export const email = z
   .max(160)
   .refine((v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "E-mail inválido.");
 
+/** Login: e-mail ou nome de usuário (letras minúsculas, números, ponto, hífen, sublinhado). */
+export const login = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(160)
+  .refine(
+    (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || /^[a-z0-9._-]{3,60}$/.test(v),
+    "Informe um e-mail ou um nome de usuário (3 a 60 caracteres: letras, números, ponto, hífen).",
+  );
+
 export const emailOpcional = z
   .string()
   .trim()

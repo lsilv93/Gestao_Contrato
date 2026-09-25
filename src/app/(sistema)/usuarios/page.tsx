@@ -44,7 +44,7 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>E-mail</th>
+                <th>Login</th>
                 <th>Perfil</th>
                 <th>CNPJ vinculado</th>
                 <th>Situação</th>
@@ -94,7 +94,7 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
             {editando && <input type="hidden" name="id" value={editando.id} />}
             <Voltar href={aqui} />
             <Campo nome="name" rotulo="Nome completo" valor={editando?.name} obrigatorio maxLength={120} />
-            <Campo nome="email" rotulo="E-mail (login)" type="email" valor={editando?.email} obrigatorio maxLength={160} autoComplete="off" />
+            <Campo nome="email" rotulo="Login (usuário ou e-mail)" valor={editando?.email} obrigatorio maxLength={160} autoComplete="off" autoCapitalize="none" placeholder="ex.: joao.silva ou joao@empresa.com.br" />
             <Selecao
               nome="role"
               rotulo="Perfil"

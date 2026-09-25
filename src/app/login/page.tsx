@@ -35,8 +35,8 @@ export default function LoginPage() {
         )}
         <FormAcao acao={entrar} botao="Entrar" classeBotao="btn-primary w-full" limpar={false}>
           <div>
-            <label className="label" htmlFor="email">E-mail</label>
-            <input id="email" name="email" type="email" className="input" autoComplete="username" required autoFocus />
+            <label className="label" htmlFor="email">Usuário ou e-mail</label>
+            <input id="email" name="email" className="input" autoComplete="username" autoCapitalize="none" spellCheck={false} required autoFocus />
           </div>
           <div>
             <label className="label" htmlFor="senha">Senha</label>
