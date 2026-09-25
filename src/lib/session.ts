@@ -1,6 +1,7 @@
 // Assinatura/verificação do token de sessão (compatível com o Edge runtime do middleware).
 import { SignJWT } from "jose/jwt/sign";
 import { jwtVerify } from "jose/jwt/verify";
+import { urlBanco } from "./banco.mjs";
 
 export const SESSION_COOKIE = "gc_session";
 export const SESSION_MAX_AGE = 60 * 60 * 12; // 12 horas
@@ -25,7 +26,8 @@ let chave: Promise<Uint8Array> | null = null;
  */
 function secret(): Promise<Uint8Array> {
   if (!chave) {
-    const base = process.env.AUTH_SECRET || (process.env.DATABASE_URL ? `gc-session:${process.env.DATABASE_URL}` : "");
+    const db = urlBanco();
+    const base = process.env.AUTH_SECRET || (db ? `gc-session:${db}` : "");
     if (!base) throw new Error("AUTH_SECRET/DATABASE_URL não configurados");
     chave = process.env.AUTH_SECRET
       ? Promise.resolve(new TextEncoder().encode(base))

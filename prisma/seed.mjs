@@ -3,7 +3,9 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+import { urlBanco } from "../src/lib/banco.mjs";
+
+const prisma = new PrismaClient({ datasourceUrl: urlBanco() });
 
 async function main() {
   const total = await prisma.user.count();
