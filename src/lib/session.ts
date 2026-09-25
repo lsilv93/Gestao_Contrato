@@ -16,10 +16,22 @@ export type SessionPayload = {
   cnpj: string | null;
 };
 
-function secret() {
-  const s = process.env.AUTH_SECRET;
-  if (!s) throw new Error("AUTH_SECRET não configurado");
-  return new TextEncoder().encode(s);
+let chave: Promise<Uint8Array> | null = null;
+
+/**
+ * Chave de assinatura da sessão: AUTH_SECRET, se configurado. Sem ele, deriva
+ * (SHA-256) da DATABASE_URL — também secreta — para o deploy funcionar só com
+ * o banco conectado. Trocar qualquer uma das duas encerra as sessões abertas.
+ */
+function secret(): Promise<Uint8Array> {
+  if (!chave) {
+    const base = process.env.AUTH_SECRET || (process.env.DATABASE_URL ? `gc-session:${process.env.DATABASE_URL}` : "");
+    if (!base) throw new Error("AUTH_SECRET/DATABASE_URL não configurados");
+    chave = process.env.AUTH_SECRET
+      ? Promise.resolve(new TextEncoder().encode(base))
+      : crypto.subtle.digest("SHA-256", new TextEncoder().encode(base)).then((h) => new Uint8Array(h));
+  }
+  return chave;
 }
 
 export async function signSession(payload: SessionPayload) {
@@ -27,13 +39,13 @@ export async function signSession(payload: SessionPayload) {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
-    .sign(secret());
+    .sign(await secret());
 }
 
 export async function verifySession(token: string | undefined): Promise<SessionPayload | null> {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, secret());
+    const { payload } = await jwtVerify(token, await secret());
     return payload as unknown as SessionPayload;
   } catch {
     return null;
