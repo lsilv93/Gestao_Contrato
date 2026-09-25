@@ -23,7 +23,9 @@ const schema = z
       .transform((v) => (v ? normalizarCnpj(v) : null)),
     senha: z.string().optional(),
   })
-  .refine((d) => d.role === "ADMIN" || !!d.carrierCnpj, { message: "Usuário Cliente precisa estar vinculado ao CNPJ de uma transportadora." });
+  .refine((d) => d.role === "ADMIN" || !!d.carrierCnpj, { message: "Selecione o Transportador / CNPJ ao qual o usuário Cliente pertence." })
+  // ADM Geral tem acesso irrestrito: não fica vinculado a um CNPJ
+  .transform((d) => (d.role === "ADMIN" ? { ...d, carrierCnpj: null } : d));
 
 export async function salvarUsuario(_: Estado, form: FormData): Promise<Estado> {
   let msg: string;

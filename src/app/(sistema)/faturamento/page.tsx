@@ -16,17 +16,28 @@ import { formatarCnpj, formatarMoeda } from "@/lib/formatos";
 import { urlCom } from "@/lib/url";
 import { ehAdmin, requireUsuario } from "@/server/auth";
 import { listarContratos } from "@/server/consultas/contratos";
-import { buscarServico, lerFiltroFaturamento, listarServicos } from "@/server/consultas/faturamento";
+import {
+  buscarServico,
+  lerFiltroCobrancas,
+  lerFiltroFaturamento,
+  listarCobrancasCliente,
+  listarServicos,
+  rotuloCobranca,
+  type SituacaoCobranca,
+} from "@/server/consultas/faturamento";
+import type { UsuarioAtual } from "@/server/auth";
 import { nomeCarrier, param, type Params } from "@/server/consultas/filtros";
 import { opcoesTransportadoras } from "@/server/consultas/transportadoras";
 
-export const metadata = { title: "Serviços & Faturamento" };
+export const metadata = { title: "Faturamento" };
 const BASE = "/faturamento";
 
 export default async function FaturamentoPage({ searchParams }: { searchParams: Promise<Params> }) {
   const usuario = await requireUsuario();
   const admin = ehAdmin(usuario);
   const sp = await searchParams;
+  // Cliente / Transportador: visão restrita de cobranças em aberto (sem valores nem histórico pago)
+  if (!admin) return <CobrancasCliente usuario={usuario} sp={sp} />;
   const filtro = lerFiltroFaturamento(sp);
   const editarId = admin ? param(sp, "editar") : undefined;
   const pagarId = admin ? param(sp, "pagar") : undefined;
@@ -188,6 +199,83 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
           </FormAcao>
         </Modal>
       )}
+    </>
+  );
+}
+
+/**
+ * Visão do Cliente / Transportador: apenas lançamentos EM ABERTO ou EM ATRASO do
+ * próprio CNPJ — número da NF, vencimento e farol. Sem valores, sem pagas, sem totais.
+ */
+async function CobrancasCliente({ usuario, sp }: { usuario: UsuarioAtual; sp: Params }) {
+  const filtro = lerFiltroCobrancas(sp);
+  const [lista, todas] = await Promise.all([listarCobrancasCliente(usuario, filtro), listarCobrancasCliente(usuario)]);
+  const contar = (s: SituacaoCobranca) => todas.filter((c) => c.situacao === s).length;
+
+  return (
+    <>
+      <Cabecalho titulo="Cobranças em aberto" descricao="Notas fiscais em aberto ou em atraso da sua empresa, para conferência. Notas já pagas não aparecem aqui." />
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-2">
+        {(["OVERDUE", "PENDING"] as const).map((s) => (
+          <Link
+            key={s}
+            href={urlCom(BASE, sp, { status: filtro.situacao === s ? null : s })}
+            aria-current={filtro.situacao === s ? "true" : undefined}
+            className={`card-sm flex items-center justify-between gap-3 p-5 ${filtro.situacao === s ? "ring-2 ring-acento/60" : ""}`}
+          >
+            <StatusBadge status={s} rotulo={rotuloCobranca[s]} />
+            <span className="num text-[22px] font-semibold text-t1">{contar(s)}</span>
+          </Link>
+        ))}
+      </div>
+
+      <FormFiltro className="mb-5 grid gap-3 sm:grid-cols-2">
+        <Campo prefixo="filtro" nome="nf" rotulo="Número da NF" valor={filtro.nf} placeholder="Enter para buscar" />
+        <Selecao
+          prefixo="filtro"
+          nome="status"
+          rotulo="Situação"
+          valor={filtro.situacao}
+          vazio="Em aberto e em atraso"
+          opcoes={(["PENDING", "OVERDUE"] as const).map((v) => ({ valor: v, rotulo: rotuloCobranca[v] }))}
+        />
+      </FormFiltro>
+
+      <Painel titulo={`Cobranças (${lista.length})`}>
+        {lista.length === 0 ? (
+          <Vazio>Nenhuma cobrança em aberto. Tudo em dia!</Vazio>
+        ) : (
+          <Tabela>
+            <table className="tabela">
+              <thead>
+                <tr>
+                  <th>Farol</th>
+                  <th>NF / Fatura</th>
+                  <th>Tipo</th>
+                  <th>Vencimento</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lista.map((c) => (
+                  <tr key={c.id}>
+                    <td><FarolBadge farol={c.farol} /></td>
+                    <td className="num font-semibold text-t1">{c.invoiceNumber}</td>
+                    <td><StatusBadge status={c.contractType} rotulo={c.contractType} /></td>
+                    <td>
+                      <p className="num">{formatarData(c.dueDate)}</p>
+                      <p className="text-[10px] text-t4">{textoPrazo(c.dueDate)}</p>
+                    </td>
+                    <td><StatusBadge status={c.situacao} rotulo={rotuloCobranca[c.situacao]} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Tabela>
+        )}
+        <LegendaFarol />
+      </Painel>
     </>
   );
 }

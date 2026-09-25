@@ -38,7 +38,69 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
   const janela = somarDias(hoje, JANELA_ALERTA_DIAS);
   const mes = f.mes ? limitesDoMes(f.mes) : null;
 
-  // ---------------- contratos (financeiro) ----------------
+  // Dados financeiros (valores de contratos e faturamento consolidado): somente ADM Geral.
+  const admin = u.perfil === "ADMIN";
+  const [financeiro, cobrancas] = await Promise.all([
+    admin ? carregarFinanceiro(escopo, mes, hoje) : null,
+    // cobranças em aberto (sem valores) — visão de conferência de todos os perfis
+    Promise.all([
+      prisma.financialService.count({ where: { ...escopo, status: "PENDING", dueDate: { gte: hoje } } }),
+      prisma.financialService.count({ where: { ...escopo, status: "PENDING", dueDate: { lt: hoje } } }),
+    ]).then(([aVencer, emAtraso]) => ({ aVencer, emAtraso })),
+  ]);
+
+  // ---------------- alertas de vencimento (hoje) ----------------
+  const [farolContratos, farolLicencas, farolManuais, alertaContratos, alertaLicencas, alertaManuais] = await Promise.all([
+    contarFarois((fa) => prisma.contract.count({ where: { ...escopo, status: "ACTIVE", expirationDate: condicaoFarol(fa) } })),
+    contarFarois((fa) => prisma.sanitaryLicense.count({ where: { ...escopo, status: "CURRENT", expirationDate: condicaoFarol(fa) } })),
+    contarFarois((fa) => prisma.goodPracticesManual.count({ where: { ...escopo, reviewDate: condicaoFarol(fa) } })),
+    prisma.contract.findMany({
+      where: { ...escopo, status: "ACTIVE", expirationDate: { lte: janela } },
+      include: { carrier: carrierResumo },
+      orderBy: { expirationDate: "asc" },
+      take: 8,
+    }),
+    prisma.sanitaryLicense.findMany({
+      where: { ...escopo, status: "CURRENT", expirationDate: { lte: janela } },
+      include: { carrier: carrierResumo },
+      orderBy: { expirationDate: "asc" },
+      take: 8,
+    }),
+    prisma.goodPracticesManual.findMany({
+      where: { ...escopo, reviewDate: { lte: janela } },
+      include: { carrier: carrierResumo },
+      orderBy: { reviewDate: "asc" },
+      take: 8,
+    }),
+  ]);
+
+  return {
+    /** null para o Cliente / Transportador */
+    contratos: financeiro?.contratos ?? null,
+    /** null para o Cliente / Transportador */
+    faturamento: financeiro?.faturamento ?? null,
+    cobrancas,
+    alertas: {
+      janelaDias: JANELA_ALERTA_DIAS,
+      contratos: {
+        farois: farolContratos,
+        itens: alertaContratos.map((c) => ({ ...c, amount: Number(c.amount), farol: farolVencimento(c.expirationDate, false, hojeTxt)! })),
+      },
+      licencas: {
+        farois: farolLicencas,
+        itens: alertaLicencas.map((l) => ({ ...l, farol: farolVencimento(l.expirationDate, false, hojeTxt)!, situacao: situacaoLicenca(l, hojeTxt) })),
+      },
+      manuais: {
+        farois: farolManuais,
+        itens: alertaManuais.map((m) => ({ ...m, farol: farolVencimento(m.reviewDate, false, hojeTxt)! })),
+      },
+    },
+  };
+}
+export type Dashboard = Awaited<ReturnType<typeof carregarDashboard>>;
+
+/** Métricas financeiras do dashboard (somente ADM Geral). */
+async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio: Date; fim: Date } | null, hoje: Date) {
   const whereContratos: Prisma.ContractWhereInput = mes
     ? {
         ...escopo,
@@ -73,31 +135,6 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
     return { quantidade: g?._count ?? 0, valor: Number(g?._sum.amount ?? 0) };
   };
 
-  // ---------------- alertas de vencimento (hoje) ----------------
-  const [farolContratos, farolLicencas, farolManuais, alertaContratos, alertaLicencas, alertaManuais] = await Promise.all([
-    contarFarois((fa) => prisma.contract.count({ where: { ...escopo, status: "ACTIVE", expirationDate: condicaoFarol(fa) } })),
-    contarFarois((fa) => prisma.sanitaryLicense.count({ where: { ...escopo, status: "CURRENT", expirationDate: condicaoFarol(fa) } })),
-    contarFarois((fa) => prisma.goodPracticesManual.count({ where: { ...escopo, reviewDate: condicaoFarol(fa) } })),
-    prisma.contract.findMany({
-      where: { ...escopo, status: "ACTIVE", expirationDate: { lte: janela } },
-      include: { carrier: carrierResumo },
-      orderBy: { expirationDate: "asc" },
-      take: 8,
-    }),
-    prisma.sanitaryLicense.findMany({
-      where: { ...escopo, status: "CURRENT", expirationDate: { lte: janela } },
-      include: { carrier: carrierResumo },
-      orderBy: { expirationDate: "asc" },
-      take: 8,
-    }),
-    prisma.goodPracticesManual.findMany({
-      where: { ...escopo, reviewDate: { lte: janela } },
-      include: { carrier: carrierResumo },
-      orderBy: { reviewDate: "asc" },
-      take: 8,
-    }),
-  ]);
-
   return {
     contratos: {
       total: totalContratos,
@@ -113,21 +150,5 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
       pj: nfTipo("PJ"),
       spot: nfTipo("SPOT"),
     },
-    alertas: {
-      janelaDias: JANELA_ALERTA_DIAS,
-      contratos: {
-        farois: farolContratos,
-        itens: alertaContratos.map((c) => ({ ...c, amount: Number(c.amount), farol: farolVencimento(c.expirationDate, false, hojeTxt)! })),
-      },
-      licencas: {
-        farois: farolLicencas,
-        itens: alertaLicencas.map((l) => ({ ...l, farol: farolVencimento(l.expirationDate, false, hojeTxt)!, situacao: situacaoLicenca(l, hojeTxt) })),
-      },
-      manuais: {
-        farois: farolManuais,
-        itens: alertaManuais.map((m) => ({ ...m, farol: farolVencimento(m.reviewDate, false, hojeTxt)! })),
-      },
-    },
   };
 }
-export type Dashboard = Awaited<ReturnType<typeof carregarDashboard>>;

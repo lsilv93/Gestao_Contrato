@@ -35,11 +35,11 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
     editarId ? buscarContrato(usuario, editarId) : null,
   ]);
   const aqui = urlCom(BASE, sp);
-  const total = lista.reduce((a, c) => a + (c.status === "ACTIVE" ? c.amount : 0), 0);
+  const total = lista.reduce((a, c) => a + (c.status === "ACTIVE" ? (c.amount ?? 0) : 0), 0);
 
   return (
     <>
-      <Cabecalho titulo="Contratos" descricao="Contratos PJ e SPOT com farol de vencimento e o documento assinado para download.">
+      <Cabecalho titulo="Contratos" descricao={admin ? "Contratos PJ e SPOT com farol de vencimento e o documento assinado para download." : "Seus contratos, a validade de cada um e o documento para download."}>
         {admin && (
           <Link href={urlCom(BASE, sp, { novo: "1" })} className="btn-primary" scroll={false}>
             <Plus className="h-4 w-4" /> Novo contrato
@@ -66,7 +66,10 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
         <Campo prefixo="filtro" nome="busca" rotulo="Buscar descrição" valor={filtro.busca} placeholder="Enter para buscar" />
       </FormFiltro>
 
-      <Painel titulo={`Contratos (${lista.length})`} acoes={<span className="text-[11px] text-t3">Vigentes na lista: <span className="num font-semibold text-t1">{formatarMoeda(total)}</span></span>}>
+      <Painel
+        titulo={`Contratos (${lista.length})`}
+        acoes={admin && <span className="text-[11px] text-t3">Vigentes na lista: <span className="num font-semibold text-t1">{formatarMoeda(total)}</span></span>}
+      >
         {lista.length === 0 ? (
           <Vazio>Nenhum contrato encontrado com os filtros atuais.</Vazio>
         ) : (
@@ -78,7 +81,7 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
                   <th>Transportadora</th>
                   <th>Descrição</th>
                   <th>Tipo</th>
-                  <th className="!text-right">Valor</th>
+                  {admin && <th className="!text-right">Valor</th>}
                   <th>Vencimento</th>
                   <th>Status</th>
                   <th>Documento</th>
@@ -95,7 +98,7 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
                     </td>
                     <td className="max-w-[280px] truncate" title={c.title}>{c.title}</td>
                     <td><StatusBadge status={c.contractType} rotulo={c.contractType} /></td>
-                    <td className="num text-right text-t1">{formatarMoeda(c.amount)}</td>
+                    {admin && <td className="num text-right text-t1">{formatarMoeda(c.amount)}</td>}
                     <td>
                       <p className="num">{formatarData(c.expirationDate)}</p>
                       {c.farol && <p className="text-[10px] text-t4">{textoPrazo(c.expirationDate)}</p>}

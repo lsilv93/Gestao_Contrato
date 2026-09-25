@@ -12,8 +12,10 @@ Web App da consultoria para gerir **Contratos (PJ/SPOT)**, **Licenças Sanitári
 
 | Perfil | O que pode fazer |
 |---|---|
-| **Administrador** (Consultoria) | CRUD completo em todos os módulos e em todas as transportadoras, gestão de usuários e acessos, trilha de auditoria. |
-| **Cliente** (Transportadora) | Somente leitura dos dados **do próprio CNPJ**: status, faróis e download de PDF/Word de contratos, licenças e manuais, além das NFs. Não vê botões de edição e não consegue criar, editar nem excluir nada. |
+| **ADM Geral** (Consultoria) | Acesso irrestrito: todos os transportadores, cadastros, edição, relatórios, auditoria e dados financeiros completos. Não fica vinculado a CNPJ. |
+| **Cliente / Transportador** | Amarrado **obrigatoriamente** a um CNPJ. Somente visualização e download dos próprios **Contratos** (e validade), **Licenças Sanitárias** (e validade) e **Manuais/POPs** (PDF e Word). Nenhum botão ou rota de criação, edição, substituição ou exclusão. |
+
+**Restrição financeira do Cliente:** não vê cobranças pagas, valores (nem de NFs, nem de contratos) ou faturamento consolidado. Vê **apenas** as cobranças **em aberto ou em atraso**: número da NF, vencimento e farol (*A vencer* / *Em atraso*). A regra é aplicada no servidor (`listarCobrancasCliente` seleciona só esses campos no banco; `listarServicos` e as métricas financeiras do dashboard são exclusivas do ADM), então valores e NFs pagas nunca chegam ao navegador do cliente — nem pela tela, nem pela API.
 
 O controle é aplicado em **três camadas**:
 1. **Middleware** (`src/middleware.ts`): exige sessão, bloqueia as rotas administrativas para o Cliente e bloqueia qualquer método de escrita na API (`POST/PUT/DELETE` → 403).
@@ -94,9 +96,9 @@ src/
 | Rota | Perfil | Filtros |
 |---|---|---|
 | `GET /api/v1/me` | todos | — |
-| `GET /api/v1/dashboard` | todos | `mes=YYYY-MM`, `transportadora` |
+| `GET /api/v1/dashboard` | todos | `mes=YYYY-MM`, `transportadora` (Cliente: `contratos` e `faturamento` = null; só `cobrancas` e alertas) |
 | `GET /api/v1/contratos` | todos | `transportadora`, `tipo`, `status`, `farol`, `busca` |
-| `GET /api/v1/faturamento` | todos | `transportadora`, `tipo`, `status` (PENDING/PAID/OVERDUE/CANCELED), `nf` |
+| `GET /api/v1/faturamento` | todos | ADM: `transportadora`, `tipo`, `status` (PENDING/PAID/OVERDUE/CANCELED), `nf` · Cliente: só em aberto/atraso, sem valores — `status` (PENDING/OVERDUE), `nf` |
 | `GET /api/v1/licencas` | todos | `transportadora`, `status`, `farol`, `historico=1`, `busca` |
 | `GET /api/v1/manuais` | todos | `transportadora`, `categoria`, `farol`, `busca` |
 | `GET /api/v1/transportadoras` | ADMIN | — |

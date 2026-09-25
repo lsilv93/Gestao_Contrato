@@ -22,7 +22,7 @@ import {
 import { sair } from "@/actions/auth";
 import { BotaoTema } from "./BotaoTema";
 
-type Item = { href: string; rotulo: string; icone: typeof ShieldCheck; admin?: boolean };
+type Item = { href: string; rotulo: string; rotuloCliente?: string; icone: typeof ShieldCheck; admin?: boolean };
 
 const grupos: { titulo: string; itens: Item[] }[] = [
   { titulo: "", itens: [{ href: "/", rotulo: "Dashboard", icone: LayoutDashboard }] },
@@ -34,7 +34,7 @@ const grupos: { titulo: string; itens: Item[] }[] = [
       { href: "/manuais", rotulo: "Manuais & POPs", icone: BookOpenCheck },
     ],
   },
-  { titulo: "Financeiro", itens: [{ href: "/faturamento", rotulo: "Serviços & Faturamento", icone: ReceiptText }] },
+  { titulo: "Financeiro", itens: [{ href: "/faturamento", rotulo: "Serviços & Faturamento", rotuloCliente: "Cobranças em aberto", icone: ReceiptText }] },
   {
     titulo: "Administração",
     itens: [
@@ -80,7 +80,7 @@ export function Menu({ usuario, cnpjFormatado }: { usuario: UsuarioMenu; cnpjFor
             </button>
             <div className="min-w-0">
               <p className="truncate text-[13px] font-semibold text-t1">{admin ? "Consultoria — visão de todas as transportadoras" : usuario.carrier?.nome}</p>
-              <p className="truncate text-[11px] text-t3">{admin ? "Perfil Administrador · acesso total" : `CNPJ ${cnpjFormatado} · acesso somente leitura`}</p>
+              <p className="truncate text-[11px] text-t3">{admin ? "Perfil ADM Geral · acesso total" : `CNPJ ${cnpjFormatado} · somente visualização e download`}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -124,7 +124,7 @@ export function Menu({ usuario, cnpjFormatado }: { usuario: UsuarioMenu; cnpjFor
                         )}
                       >
                         <i.icone className="h-4 w-4 flex-none" />
-                        {i.rotulo}
+                        {admin ? i.rotulo : (i.rotuloCliente ?? i.rotulo)}
                       </Link>
                     ))}
                   </div>
@@ -135,7 +135,7 @@ export function Menu({ usuario, cnpjFormatado }: { usuario: UsuarioMenu; cnpjFor
           <div className="p-3">
             <div className="poco p-4">
               <p className="truncate text-[12px] font-semibold text-t1">{usuario.nome}</p>
-              <p className="truncate text-[11px] text-t3">{admin ? "Administrador (Consultoria)" : "Cliente (Transportadora)"}</p>
+              <p className="truncate text-[11px] text-t3">{admin ? "ADM Geral (Consultoria)" : "Cliente / Transportador"}</p>
             </div>
           </div>
         </div>

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { alternarUsuario, salvarUsuario } from "@/actions/usuarios";
 import { BotaoEditar } from "@/components/Acoes";
-import { Campo, Selecao, Voltar } from "@/components/Campos";
+import { Campo, Voltar } from "@/components/Campos";
+import { CamposPerfil } from "@/components/CamposPerfil";
 import { FormAcao } from "@/components/FormAcao";
 import { Modal } from "@/components/Modal";
 import { BannerOk, Cabecalho, Painel, StatusBadge, Tabela } from "@/components/ui";
@@ -31,7 +32,7 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <Cabecalho titulo="Usuários & Acessos" descricao="Administradores da consultoria e acessos de clientes (somente leitura, restritos ao CNPJ vinculado).">
+      <Cabecalho titulo="Usuários & Acessos" descricao="ADM Geral (acesso irrestrito) e acessos de Cliente / Transportador (somente leitura, restritos ao CNPJ vinculado).">
         <Link href={urlCom(BASE, sp, { novo: "1" })} className="btn-primary" scroll={false}>
           <Plus className="h-4 w-4" /> Novo acesso
         </Link>
@@ -46,7 +47,7 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
                 <th>Nome</th>
                 <th>Login</th>
                 <th>Perfil</th>
-                <th>CNPJ vinculado</th>
+                <th>Transportador / CNPJ</th>
                 <th>Situação</th>
                 <th>Criado em</th>
                 <th />
@@ -57,7 +58,7 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
                 <tr key={u.id} className={u.active ? undefined : "opacity-60"}>
                   <td className="font-medium text-t1">{u.name}</td>
                   <td>{u.email}</td>
-                  <td><StatusBadge status={u.role} rotulo={u.role === "ADMIN" ? "Administrador" : "Cliente"} /></td>
+                  <td><StatusBadge status={u.role} rotulo={u.role === "ADMIN" ? "ADM Geral" : "Cliente / Transportador"} /></td>
                   <td>
                     {u.carrier ? (
                       <>
@@ -89,29 +90,16 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
       </Painel>
 
       {(novo || editando) && (
-        <Modal titulo={editando ? `Editar ${editando.email}` : "Novo acesso"} descricao="Clientes enxergam somente os contratos, licenças, manuais e NFs do CNPJ vinculado, sem poder alterar nada." fecharHref={aqui}>
+        <Modal titulo={editando ? `Editar ${editando.email}` : "Novo acesso"} descricao="Escolha o perfil. Cliente / Transportador fica amarrado a um CNPJ e só visualiza e baixa os próprios documentos e cobranças em aberto." fecharHref={aqui}>
           <FormAcao acao={salvarUsuario} botao={editando ? "Salvar alterações" : "Criar acesso"} limpar={false}>
             {editando && <input type="hidden" name="id" value={editando.id} />}
             <Voltar href={aqui} />
             <Campo nome="name" rotulo="Nome completo" valor={editando?.name} obrigatorio maxLength={120} />
             <Campo nome="email" rotulo="Login (usuário ou e-mail)" valor={editando?.email} obrigatorio maxLength={160} autoComplete="off" autoCapitalize="none" placeholder="ex.: joao.silva ou joao@empresa.com.br" />
-            <Selecao
-              nome="role"
-              rotulo="Perfil"
-              valor={editando?.role ?? "CLIENT"}
-              obrigatorio
-              opcoes={[
-                { valor: "CLIENT", rotulo: "Cliente (Transportadora) — somente leitura" },
-                { valor: "ADMIN", rotulo: "Administrador (Consultoria) — acesso total" },
-              ]}
-            />
-            <Selecao
-              nome="carrierCnpj"
-              rotulo="CNPJ vinculado"
-              valor={editando?.carrierCnpj}
-              vazio="Nenhum (somente Administrador)"
-              opcoes={transportadoras.map((t) => ({ valor: t.cnpj, rotulo: `${formatarCnpj(t.cnpj)} — ${nomeCarrier(t)}` }))}
-              ajuda="Obrigatório para Cliente."
+            <CamposPerfil
+              perfil={editando?.role ?? "CLIENT"}
+              cnpj={editando?.carrierCnpj}
+              opcoes={transportadoras.map((t) => ({ cnpj: t.cnpj, rotulo: `${nomeCarrier(t)} — ${formatarCnpj(t.cnpj)}` }))}
             />
             <Campo nome="senha" rotulo={editando ? "Nova senha (em branco mantém a atual)" : "Senha inicial"} obrigatorio={!editando} type="password" minLength={6} autoComplete="new-password" />
           </FormAcao>

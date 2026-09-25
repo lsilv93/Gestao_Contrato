@@ -31,7 +31,13 @@ export async function listarContratos(u: UsuarioAtual, f: FiltroContratos = {}) 
     take: 500,
   });
   const hoje = diaLocal();
-  return lista.map((c) => ({ ...c, amount: Number(c.amount), farol: farolVencimento(c.expirationDate, c.status !== "ACTIVE", hoje) }));
+  // valores de contrato são dado financeiro: só o ADM Geral recebe
+  const verValores = u.perfil === "ADMIN";
+  return lista.map((c) => ({
+    ...c,
+    amount: verValores ? Number(c.amount) : null,
+    farol: farolVencimento(c.expirationDate, c.status !== "ACTIVE", hoje),
+  }));
 }
 export type ContratoLinha = Awaited<ReturnType<typeof listarContratos>>[number];
 

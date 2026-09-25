@@ -5,6 +5,7 @@ import { statusFaturamento, type StatusFaturamento } from "@/domain/status";
 import { diaLocal, hojeData } from "@/lib/datas";
 import type { UsuarioAtual } from "../auth";
 import { escopoCarrier } from "../escopo";
+import { AcessoNegado } from "../erros";
 import { prisma } from "../prisma";
 import { carrierResumo, param, paramEnum, type Params } from "./filtros";
 
@@ -25,7 +26,9 @@ function condicaoStatus(status: StatusFaturamento): Prisma.FinancialServiceWhere
   return { status };
 }
 
+/** Faturamento completo (valores, pagamentos, histórico): somente ADM Geral. */
 export async function listarServicos(u: UsuarioAtual, f: FiltroFaturamento = {}) {
+  if (u.perfil !== "ADMIN") throw new AcessoNegado();
   const where: Prisma.FinancialServiceWhereInput = {
     ...escopoCarrier(u, f.carrierId),
     ...(f.tipo ? { contractType: f.tipo } : {}),
@@ -48,7 +51,43 @@ export async function listarServicos(u: UsuarioAtual, f: FiltroFaturamento = {})
 }
 export type ServicoLinha = Awaited<ReturnType<typeof listarServicos>>[number];
 
+// ---------------- visão do Cliente / Transportador ----------------
+export type SituacaoCobranca = "PENDING" | "OVERDUE";
+export const rotuloCobranca: Record<SituacaoCobranca, string> = { PENDING: "A vencer", OVERDUE: "Em atraso" };
+
+/**
+ * Cobranças do cliente: SOMENTE lançamentos em aberto ou em atraso do próprio
+ * CNPJ, sem valores nem histórico de pagamentos. O filtro e a projeção são
+ * feitos no banco — valores e NFs pagas nunca saem do servidor para o cliente.
+ */
+export async function listarCobrancasCliente(u: UsuarioAtual, f: { situacao?: SituacaoCobranca; nf?: string } = {}) {
+  const hoje = hojeData();
+  const lista = await prisma.financialService.findMany({
+    where: {
+      ...escopoCarrier(u),
+      status: "PENDING",
+      ...(f.situacao === "OVERDUE" ? { dueDate: { lt: hoje } } : f.situacao === "PENDING" ? { dueDate: { gte: hoje } } : {}),
+      ...(f.nf ? { invoiceNumber: { contains: f.nf, mode: "insensitive" } } : {}),
+    },
+    select: { id: true, invoiceNumber: true, contractType: true, dueDate: true },
+    orderBy: [{ dueDate: "asc" }, { invoiceNumber: "asc" }],
+    take: 500,
+  });
+  const dia = diaLocal();
+  return lista.map((s) => {
+    const farol = farolVencimento(s.dueDate, false, dia)!;
+    return { ...s, farol, situacao: (farol === "VERMELHO" ? "OVERDUE" : "PENDING") as SituacaoCobranca };
+  });
+}
+export type CobrancaCliente = Awaited<ReturnType<typeof listarCobrancasCliente>>[number];
+
+export const lerFiltroCobrancas = (sp: Params) => ({
+  situacao: paramEnum(sp, "status", ["PENDING", "OVERDUE"] as const),
+  nf: param(sp, "nf"),
+});
+
 export async function buscarServico(u: UsuarioAtual, id: string) {
+  if (u.perfil !== "ADMIN") return null;
   const s = await prisma.financialService.findFirst({ where: { id, ...escopoCarrier(u) }, include: { carrier: carrierResumo } });
   return s ? { ...s, amount: Number(s.amount) } : null;
 }
