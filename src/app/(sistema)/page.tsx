@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, BadgeCheck, BookOpenCheck, CircleDollarSign, Clock3, FileSignature, ReceiptText, ShieldPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, BadgeCheck, BookOpenCheck, CircleDollarSign, Clock3, FileSignature, ReceiptText, ShieldPlus } from "lucide-react";
 import { FormFiltro } from "@/components/Filtros";
 import { FiltroTransportadora } from "@/components/FiltroTransportadora";
 import { Barra, Cabecalho, ContadoresFarol, FarolBadge, Indicador, LegendaFarol, Painel, Vazio } from "@/components/ui";
@@ -111,6 +111,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           titulo="Contratos"
           icone={<FileSignature className="h-4 w-4 text-acento" />}
           farois={d.alertas.contratos.farois}
+          verTodas={comTransp("/contratos", {})}
           href={(fa) => comTransp("/contratos", { farol: fa })}
           vazio="Nenhum contrato vencido ou a vencer nos próximos 60 dias."
           itens={d.alertas.contratos.itens.map((c) => ({
@@ -126,6 +127,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           titulo="Licenças Sanitárias"
           icone={<ShieldPlus className="h-4 w-4 text-acento" />}
           farois={d.alertas.licencas.farois}
+          verTodas={comTransp("/licencas", {})}
           href={(fa) => comTransp("/licencas", { farol: fa })}
           vazio="Nenhuma licença vencida ou a vencer nos próximos 60 dias."
           itens={d.alertas.licencas.itens.map((l) => ({
@@ -141,6 +143,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           titulo="Manuais de Boas Práticas"
           icone={<BookOpenCheck className="h-4 w-4 text-acento" />}
           farois={d.alertas.manuais.farois}
+          verTodas={comTransp("/manuais", {})}
           href={(fa) => comTransp("/manuais", { farol: fa })}
           vazio="Nenhum manual com revisão vencida ou prevista para os próximos 60 dias."
           itens={d.alertas.manuais.itens.map((m) => ({
@@ -162,19 +165,28 @@ function PainelAlerta({
   titulo,
   icone,
   farois,
+  verTodas,
   href,
   itens,
   vazio,
 }: {
   titulo: string;
   icone: React.ReactNode;
+  verTodas: string;
   farois: Record<Farol, number>;
   href: (f: Farol) => string;
   itens: { id: string; href: string; titulo: string; sub: string; data: Date; farol: Farol }[];
   vazio: string;
 }) {
   return (
-    <Painel titulo={<>{icone} {titulo}</>}>
+    <Painel
+      titulo={<>{icone} {titulo}</>}
+      acoes={
+        <Link href={verTodas} className="btn-secondary btn-sm" aria-label={`Ver todos: ${titulo}`}>
+          Ver todas <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      }
+    >
       <ContadoresFarol farois={farois} href={href} />
       <div className="mt-4 space-y-2">
         {itens.length === 0 ? (

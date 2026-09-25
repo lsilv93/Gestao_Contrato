@@ -44,6 +44,7 @@ enum LicenseStatus {
   RENEWED    // Substituída por uma nova versão
   SUSPENDED  // Suspensa
   CANCELED   // Cancelada
+  CLOSED     // Encerrada
 }
 
 enum ManualCategory {
@@ -217,14 +218,16 @@ model StoredFile {
 
 /// Trilha de auditoria imutável (UPDATE/DELETE bloqueados por trigger no banco).
 model AuditLog {
-  id         String      @id @default(cuid())
+  /// ID da ação: UUID gerado pelo próprio PostgreSQL.
+  id         String      @id @default(dbgenerated("(gen_random_uuid())::text"))
   userId     String?
   user       User?       @relation(fields: [userId], references: [id], onDelete: Restrict)
   userName   String?
   action     AuditAction
   entityName String
   entityId   String?
-  timestamp  DateTime    @default(now())
+  /// Data/hora exata (UTC, com fuso).
+  timestamp  DateTime    @default(now()) @db.Timestamptz(3)
   details    Json?
 
   @@index([entityName, entityId])

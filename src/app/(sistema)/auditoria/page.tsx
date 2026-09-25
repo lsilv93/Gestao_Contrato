@@ -25,7 +25,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
     <>
       <Cabecalho
         titulo="Trilha de Auditoria"
-        descricao="Registro imutável de toda inclusão, edição e exclusão: ID da ação, usuário, data/hora e tipo de operação. O banco de dados bloqueia qualquer alteração ou exclusão destes registros."
+        descricao="Registro imutável de toda inclusão, edição e exclusão: ID da ação (UUID), ID e nome do usuário, data/hora exata (ISO 8601), tipo de operação, entidade e ID afetado. O banco de dados bloqueia qualquer alteração ou exclusão destes registros."
       />
 
       <FormFiltro className="mb-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -50,7 +50,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
               <thead>
                 <tr>
                   <th>Data / Hora</th>
-                  <th>ID da ação</th>
+                  <th>ID da ação (UUID)</th>
                   <th>Usuário</th>
                   <th>Operação</th>
                   <th>Módulo</th>
@@ -61,9 +61,15 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
               <tbody>
                 {itens.map((a) => (
                   <tr key={a.id} className="align-top">
-                    <td className="num">{formatarDataHora(a.timestamp)}</td>
+                    <td>
+                      <p className="num">{formatarDataHora(a.timestamp)}</p>
+                      <p className="num text-[10px] text-t4" title="Timestamp ISO 8601 (UTC)">{a.timestamp.toISOString()}</p>
+                    </td>
                     <td className="num text-[10px] text-t4">{a.id}</td>
-                    <td>{a.userName ?? <span className="text-t4">Sistema</span>}</td>
+                    <td>
+                      <p>{a.userName ?? <span className="text-t4">Sistema</span>}</p>
+                      {a.userId && <p className="num text-[10px] text-t4">{a.userId}</p>}
+                    </td>
                     <td><StatusBadge status={a.action} rotulo={rotuloAcao[a.action]} /></td>
                     <td>{rotuloEntidade[a.entityName] ?? a.entityName}</td>
                     <td>

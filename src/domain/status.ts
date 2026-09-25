@@ -32,6 +32,7 @@ export const rotuloStatusLicenca: Record<LicenseStatus, string> = {
   RENEWED: "Renovada",
   SUSPENDED: "Suspensa",
   CANCELED: "Cancelada",
+  CLOSED: "Encerrada",
 };
 
 export type SituacaoLicenca = "ATIVA" | "PROXIMA" | "VENCIDA" | LicenseStatus;

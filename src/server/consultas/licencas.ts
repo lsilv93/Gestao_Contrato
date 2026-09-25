@@ -12,7 +12,7 @@ export type FiltroLicencas = { carrierId?: string; status?: LicenseStatus; farol
 
 export const lerFiltroLicencas = (sp: Params): FiltroLicencas => ({
   carrierId: param(sp, "transportadora"),
-  status: paramEnum(sp, "status", ["CURRENT", "RENEWED", "SUSPENDED", "CANCELED"] as const),
+  status: paramEnum(sp, "status", ["CURRENT", "RENEWED", "SUSPENDED", "CANCELED", "CLOSED"] as const),
   farol: paramFarol(sp),
   historico: param(sp, "historico") === "1",
   busca: param(sp, "busca"),
@@ -40,6 +40,15 @@ export async function listarLicencas(u: UsuarioAtual, f: FiltroLicencas = {}) {
   }));
 }
 export type LicencaLinha = Awaited<ReturnType<typeof listarLicencas>>[number];
+
+/** Contadores de situação das licenças vigentes (Ativa / Próxima de Vencer / Vencida). */
+export async function contarSituacoes(u: UsuarioAtual, carrierId?: string) {
+  const base = { ...escopoCarrier(u, carrierId), status: "CURRENT" as const };
+  const [VERDE, AMARELO, VERMELHO] = await Promise.all(
+    (["VERDE", "AMARELO", "VERMELHO"] as const).map((f) => prisma.sanitaryLicense.count({ where: { ...base, expirationDate: condicaoFarol(f) } })),
+  );
+  return { VERDE, AMARELO, VERMELHO };
+}
 
 export async function buscarLicenca(u: UsuarioAtual, id: string) {
   return prisma.sanitaryLicense.findFirst({

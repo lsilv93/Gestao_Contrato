@@ -37,12 +37,16 @@ A antecedência do alerta amarelo está na constante `DIAS_ALERTA` (hoje = 1). R
 - **Faturamento:** *Atrasado* é calculado, e não gravado: uma NF *Pendente* com vencimento anterior a hoje.
 
 ### Trilha de auditoria (`src/server/auditoria.ts`)
-Toda inclusão, edição ou exclusão grava, **na mesma transação**, um registro com ID da ação, usuário, data/hora, tipo (CREATE/UPDATE/DELETE), módulo, ID do registro e detalhes (antes/depois). A imutabilidade é garantida **no banco**: um trigger PostgreSQL bloqueia `UPDATE`, `DELETE` e `TRUNCATE` na tabela `audit_logs`.
+Toda inclusão, edição ou exclusão grava, **na mesma transação**, um registro com ID da ação (**UUID** gerado pelo PostgreSQL), ID e nome do usuário, data/hora exata (`timestamptz`, exibida também em ISO 8601), tipo (CREATE/UPDATE/DELETE), entidade, ID do registro afetado e detalhes (antes/depois). A imutabilidade é garantida **no banco**: um trigger PostgreSQL bloqueia `UPDATE`, `DELETE` e `TRUNCATE` na tabela `audit_logs`.
 
 ### Licenças Sanitárias (renovação com histórico)
 - **Renovar:** a versão atual passa a *Renovada*, com o snapshot completo gravado no log, e é criada uma nova versão (`version + 1`, `previousId` apontando para a anterior) com o novo PDF e a nova validade. O PDF antigo continua no histórico.
-- **Alterar status** (Suspensa/Cancelada): grava o histórico no log e **abre automaticamente** o modal de inclusão do novo documento com nova validade.
+- **Alterar status / Encerrar** (Suspensa, Cancelada ou Encerrada): grava o histórico no log e **abre automaticamente** o modal de lançamento da nova licença (novo PDF + nova validade).
+- **Visão por situação:** contadores clicáveis *Ativas*, *Próximas de Vencer* e *Vencidas* no topo da tela de licenças.
 - **Histórico de versões:** clique em `vN` na tabela (disponível também para o Cliente).
+
+### Manuais & POPs
+PDF ou Word (.doc/.docx), versão obrigatória (ex.: v1.0, v2.1), sempre vinculado ao CNPJ da transportadora. Na edição é possível substituir o arquivo (o anterior é excluído) ou excluir o arquivo atual sem substituir — tudo auditado.
 
 ### Serviços & Faturamento
 Tabela com filtros por número da NF, tipo de contrato, transportadora e status. **Quick action:** clique na linha de uma NF pendente, ou no botão **Pago**, para abrir a confirmação com a data de pagamento.

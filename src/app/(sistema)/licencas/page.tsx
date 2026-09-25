@@ -7,7 +7,9 @@ import { FormFiltro } from "@/components/Filtros";
 import { FiltroTransportadora, opcoesSelect } from "@/components/FiltroTransportadora";
 import { FormAcao } from "@/components/FormAcao";
 import { Modal } from "@/components/Modal";
-import { BannerOk, Cabecalho, FarolBadge, LegendaFarol, Painel, StatusBadge, Tabela, Vazio } from "@/components/ui";
+import { BannerOk, Cabecalho, FarolBadge, LegendaFarol, Painel, StatusBadge, Tabela, Vazio, estiloFarol } from "@/components/ui";
+import clsx from "clsx";
+import { AlertTriangle, CheckCircle2, Clock3 } from "lucide-react";
 import { textoPrazo } from "@/domain/farol";
 import { rotuloSituacaoLicenca, rotuloStatusLicenca, situacaoLicenca } from "@/domain/status";
 import { diaDe, formatarData } from "@/lib/datas";
@@ -15,7 +17,7 @@ import { formatarCnpj } from "@/lib/formatos";
 import { urlCom } from "@/lib/url";
 import { ehAdmin, requireUsuario } from "@/server/auth";
 import { nomeCarrier, param, type Params } from "@/server/consultas/filtros";
-import { buscarLicenca, historicoLicenca, lerFiltroLicencas, listarLicencas } from "@/server/consultas/licencas";
+import { buscarLicenca, contarSituacoes, historicoLicenca, lerFiltroLicencas, listarLicencas } from "@/server/consultas/licencas";
 import { opcoesTransportadoras } from "@/server/consultas/transportadoras";
 
 export const metadata = { title: "Licenças Sanitárias" };
@@ -31,13 +33,14 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
   const renovarId = admin ? param(sp, "renovar") : undefined;
   const alterarId = admin ? param(sp, "alterar") : undefined;
   const versoesId = param(sp, "versoes");
-  const [lista, transportadoras, editando, renovando, alterando, versoes] = await Promise.all([
+  const [lista, transportadoras, editando, renovando, alterando, versoes, situacoes] = await Promise.all([
     listarLicencas(usuario, filtro),
     admin ? opcoesTransportadoras() : [],
     editarId ? buscarLicenca(usuario, editarId) : null,
     renovarId ? buscarLicenca(usuario, renovarId) : null,
     alterarId ? buscarLicenca(usuario, alterarId) : null,
     versoesId ? historicoLicenca(usuario, versoesId) : [],
+    contarSituacoes(usuario, filtro.carrierId),
   ]);
   const aqui = urlCom(BASE, sp);
 
@@ -52,6 +55,32 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
       </Cabecalho>
       <BannerOk mensagem={param(sp, "ok")} />
 
+      {/* visão geral por situação: clique para filtrar */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        {(
+          [
+            ["VERDE", "Ativas", CheckCircle2],
+            ["AMARELO", "Próximas de Vencer", Clock3],
+            ["VERMELHO", "Vencidas", AlertTriangle],
+          ] as const
+        ).map(([f, rotulo, Icone]) => (
+          <Link
+            key={f}
+            href={urlCom(BASE, sp, { farol: filtro.farol === f ? null : f, status: null })}
+            aria-current={filtro.farol === f ? "true" : undefined}
+            className={clsx("card-sm flex items-center gap-4 p-5", filtro.farol === f && "ring-2 ring-acento/60")}
+          >
+            <span className={clsx("poco flex h-11 w-11 flex-none items-center justify-center !rounded-2xl", estiloFarol[f].cor)}>
+              <Icone className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="label !mb-1 block">{rotulo}</span>
+              <span className="num text-[22px] font-semibold text-t1">{situacoes[f]}</span>
+            </span>
+          </Link>
+        ))}
+      </div>
+
       <FormFiltro>
         {admin && <FiltroTransportadora opcoes={transportadoras} valor={filtro.carrierId} />}
         <Selecao
@@ -60,9 +89,9 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
           valor={filtro.farol}
           vazio="Todas"
           opcoes={[
-            { valor: "VERMELHO", rotulo: "Vencida" },
-            { valor: "AMARELO", rotulo: "Próxima de Vencer" },
             { valor: "VERDE", rotulo: "Ativa" },
+            { valor: "AMARELO", rotulo: "Próxima de Vencer" },
+            { valor: "VERMELHO", rotulo: "Vencida" },
           ]}
         />
         <Selecao prefixo="filtro" nome="status" rotulo="Status" valor={filtro.status} vazio="Todos" opcoes={Object.entries(rotuloStatusLicenca).map(([valor, rotulo]) => ({ valor, rotulo }))} />
@@ -121,8 +150,8 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
                                 <Link href={urlCom(BASE, sp, { renovar: l.id })} className="btn-primary btn-sm" scroll={false}>
                                   <RefreshCw className="h-3.5 w-3.5" /> Renovar
                                 </Link>
-                                <Link href={urlCom(BASE, sp, { alterar: l.id })} className="btn-secondary btn-sm" scroll={false} title="Alterar status">
-                                  <ToggleRight className="h-3.5 w-3.5" /> Status
+                                <Link href={urlCom(BASE, sp, { alterar: l.id })} className="btn-secondary btn-sm" scroll={false} title="Alterar status ou encerrar">
+                                  <ToggleRight className="h-3.5 w-3.5" /> Status / Encerrar
                                 </Link>
                               </>
                             )}
@@ -165,8 +194,8 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
       {/* ---------- alteração de status ---------- */}
       {alterando && (
         <Modal
-          titulo={`Alterar status da licença ${alterando.licenseNumber}`}
-          descricao="O status anterior e os dados atuais da licença ficam gravados na trilha de auditoria. Se a licença deixar de estar vigente, a tela de inclusão do novo documento abrirá em seguida."
+          titulo={`Alterar status / encerrar licença ${alterando.licenseNumber}`}
+          descricao="O status anterior e os dados atuais da licença ficam gravados na trilha de auditoria. Ao suspender, cancelar ou encerrar, a tela de lançamento da nova licença (novo PDF e nova validade) abre automaticamente em seguida."
           fecharHref={aqui}
         >
           <FormAcao acao={alterarStatusLicenca} botao="Salvar status" classeBotao="btn-primary w-full" limpar={false}>
@@ -180,7 +209,7 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
               rotulo="Novo status"
               obrigatorio
               valor={alterando.status === "CURRENT" ? "SUSPENDED" : "CURRENT"}
-              opcoes={(["CURRENT", "SUSPENDED", "CANCELED"] as const).filter((s) => s !== alterando.status).map((s) => ({ valor: s, rotulo: rotuloStatusLicenca[s] }))}
+              opcoes={(["CURRENT", "SUSPENDED", "CANCELED", "CLOSED"] as const).filter((s) => s !== alterando.status).map((s) => ({ valor: s, rotulo: rotuloStatusLicenca[s] }))}
             />
             <Campo nome="motivo" rotulo="Motivo" maxLength={500} placeholder="Ex.: licença suspensa pela VISA municipal" />
           </FormAcao>

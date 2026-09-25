@@ -172,6 +172,7 @@ const estiloStatus: Record<string, string> = {
   RENEWED: "text-acento bg-acento/10",
   SUSPENDED: "text-ouro bg-ouro/10",
   TERMINATED: "text-t4 bg-t4/10",
+  CLOSED: "text-t4 bg-t4/10",
   // tipo de contrato
   PJ: "text-acento bg-acento/10",
   SPOT: "text-ouro bg-ouro/10",

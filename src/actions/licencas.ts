@@ -52,7 +52,7 @@ export async function salvarLicenca(_: Estado, form: FormData): Promise<Estado> 
 }
 
 const schemaStatus = z.object({
-  status: z.enum(["CURRENT", "SUSPENDED", "CANCELED"]),
+  status: z.enum(["CURRENT", "SUSPENDED", "CANCELED", "CLOSED"]),
   motivo: opcional(500),
 });
 
@@ -85,7 +85,7 @@ export async function alterarStatusLicenca(_: Estado, form: FormData): Promise<E
       });
     });
     abrirRenovacao = d.status !== "CURRENT";
-    msg = `Status alterado para ${rotuloStatusLicenca[d.status]}.${abrirRenovacao ? " Inclua agora o novo documento da licença." : ""}`;
+    msg = `Status alterado para ${rotuloStatusLicenca[d.status]} (registrado na auditoria).${abrirRenovacao ? " Lance agora a nova licença: novo PDF e nova validade." : ""}`;
   } catch (e) {
     return tratarErro(e);
   }
