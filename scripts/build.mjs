@@ -9,22 +9,25 @@ import { urlBanco, urlBancoDireta } from "../src/lib/banco.mjs";
 if (existsSync(".env")) process.loadEnvFile(".env");
 
 const url = urlBanco();
-if (!url) {
+let comandos = ["prisma generate", "prisma migrate deploy", "prisma db seed", "next build"];
+if (url) {
+  // o Prisma (schema, migrações e seed) lê estes dois nomes
+  process.env.DATABASE_URL = url;
+  process.env.DATABASE_URL_UNPOOLED = urlBancoDireta();
+  console.log("[build] Banco de dados encontrado.");
+} else {
+  // Sem banco: publica mesmo assim; o site mostra a tela /configurar com o passo a passo.
   const nomes = Object.keys(process.env).filter((k) => /POSTGRES|DATABASE|PRISMA|STORAGE|NEON|^PG/.test(k));
-  console.error(
-    "\n[build] Nenhuma URL de PostgreSQL encontrada nas variáveis de ambiente.\n" +
+  console.warn(
+    "\n[build] ATENÇÃO: nenhum banco PostgreSQL conectado — o site vai abrir a tela de configuração.\n" +
       `Variáveis relacionadas encontradas: ${nomes.length ? nomes.join(", ") : "nenhuma"}\n` +
-      "Na Vercel: abra o projeto → Storage → Create Database → Prisma Postgres (ou Neon) → Connect,\n" +
-      "marcando Production e Preview. Depois clique em Redeploy.\n",
+      "Na Vercel: projeto → Storage → Create Database → Prisma Postgres (ou Neon) → Connect\n" +
+      "(marque Production e Preview) e depois Deployments → ⋯ → Redeploy.\n",
   );
-  process.exit(1);
+  comandos = ["prisma generate", "next build"];
 }
-// o Prisma (schema, migrações e seed) lê estes dois nomes
-process.env.DATABASE_URL = url;
-process.env.DATABASE_URL_UNPOOLED = urlBancoDireta();
-console.log("[build] Banco de dados encontrado.");
 
-for (const cmd of ["prisma generate", "prisma migrate deploy", "prisma db seed", "next build"]) {
+for (const cmd of comandos) {
   console.log(`\n> ${cmd}`);
   execSync(`npx ${cmd}`, { stdio: "inherit", env: process.env });
 }
