@@ -165,5 +165,11 @@ docker run -d --name gestao-db -e POSTGRES_USER=gestao -e POSTGRES_PASSWORD=gest
 | `npm run db:migrate` | nova migração após alterar o `schema.prisma` |
 | `npm run db:studio` | Prisma Studio |
 
+## Identidade visual L&K
+
+- **Marca:** monograma L&K (L baixo + K alto, com a diagonal que sobe formando o triângulo oculto e o "+" farmacêutico), assinatura "L&K ASSESSORIA FARMACÊUTICA · COMPLIANCE & LOGÍSTICA SANITÁRIA". Arquivos em `public/marca/` (PNG fundo claro, escuro e transparente; símbolo em SVG), acessíveis em `/marca/...`.
+- **Cores:** azul-petróleo `#0B3A4A` e verde-menta `#2EDCB0` (tokens em `src/app/globals.css`; no tema claro o acento de texto é verde-petróleo `#087660` para contraste 4.5:1).
+- **Tipografia:** Montserrat (títulos, rótulos, botões e marca; auto-hospedada via `@fontsource/montserrat`).
+
 ## Tema claro / escuro
 O botão de sol/lua na barra superior (e na tela de login) alterna o tema. A escolha fica no **localStorage** e é aplicada por um script no `<head>` antes da pintura, sem "piscar". Sem escolha salva, o sistema segue o tema do sistema operacional.

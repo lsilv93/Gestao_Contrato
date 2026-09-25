@@ -55,8 +55,8 @@ function Marca() {
     <MarcaLK
       complemento={
         <>
-          <span className="block text-[12px] font-semibold text-t1">Gestão de Contratos</span>
-          <span className="block text-[11px] text-t3">Compliance</span>
+          <span className="block font-marca text-[12px] font-semibold text-t1">Gestão de Contratos</span>
+          <span className="block font-marca text-[10px] font-medium uppercase tracking-[0.18em] text-t3">Compliance</span>
         </>
       }
     />

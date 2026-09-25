@@ -106,7 +106,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           }))}
         />
         <PainelAlerta
-          titulo="Manuais de Boas Práticas"
+          titulo="Manuais & POPs"
           icone={<BookOpenCheck className="h-4 w-4 text-acento" />}
           farois={d.alertas.manuais.farois}
           verTodas={comTransp("/manuais", {})}

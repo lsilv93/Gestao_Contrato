@@ -4,7 +4,7 @@ import { entrar } from "@/actions/auth";
 import { BotaoTema } from "@/components/BotaoTema";
 import { CamposLogin } from "@/components/CamposLogin";
 import { FormAcao } from "@/components/FormAcao";
-import { LogotipoLK, SeloLK } from "@/components/Logo";
+import { AssinaturaLK, SimboloLK } from "@/components/Logo";
 import { diagnosticoBanco, modoDemo } from "@/lib/modo";
 
 export const metadata: Metadata = { title: "Entrar" };
@@ -13,19 +13,19 @@ export const dynamic = "force-dynamic";
 export default function LoginPage() {
   const demo = modoDemo();
   return (
-    <main className="relative flex min-h-screen items-center justify-center p-[14px]">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-[14px]">
+      {/* marca-d'água: monograma L&K ao fundo */}
+      <SimboloLK
+        tinta="currentColor"
+        className="pointer-events-none absolute -bottom-[12vh] -right-[8vw] h-[70vh] w-[70vh] text-t1 opacity-[0.045]"
+      />
       <div className="absolute right-[14px] top-[14px]">
         <BotaoTema />
       </div>
-      <div className="entrada w-full max-w-[420px]">
+      <div className="entrada relative w-full max-w-[440px]">
         <div className="card p-7 sm:p-9">
-          <div className="mb-8 flex flex-col items-center text-center">
-            <SeloLK tamanho="lg" className="mb-5" />
-            <h1 className="text-[22px] font-semibold tracking-tight text-t1">
-              <LogotipoLK className="mr-2" />
-              Assessoria Farmacêutica
-            </h1>
-            <p className="secao mt-2">Gestão de Contratos · Compliance</p>
+          <div className="mb-8">
+            <AssinaturaLK />
           </div>
 
           {demo && (
@@ -56,7 +56,7 @@ export default function LoginPage() {
             <ShieldCheck className="h-3.5 w-3.5 text-acento" /> Acesso seguro e auditado
           </p>
         </div>
-        <p className="mt-5 text-center text-[11px] text-t4">© {new Date().getFullYear()} L&amp;K Assessoria Farmacêutica</p>
+        <p className="mt-5 text-center font-marca text-[10px] uppercase tracking-[0.2em] text-t4">© {new Date().getFullYear()} L&amp;K Assessoria Farmacêutica</p>
       </div>
     </main>
   );

@@ -1,6 +1,6 @@
 import type { Config } from "tailwindcss";
 
-// MB Soft UI — neomorfismo navy com acento lima.
+// L&K Soft UI — neomorfismo azul-petróleo com acento verde-menta (marca L&K).
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
@@ -22,6 +22,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["'Helvetica Neue'", "Helvetica", "Arial", "sans-serif"],
+        marca: ["Montserrat", "'Helvetica Neue'", "Helvetica", "Arial", "sans-serif"],
         mono: ["ui-monospace", "Menlo", "monospace"],
       },
     },

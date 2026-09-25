@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { formatarDataHora } from "@/lib/datas";
 import { corStatus, type Relatorio } from "./relatorios";
 
-const CORES = { erro: "FFC62828", ouro: "FF8A6D00", ok: "FF3F6B00" } as const;
+const CORES = { erro: "FFC62828", ouro: "FF8A6D00", ok: "FF087660" } as const;
 
 /** Planilha .xlsx formatada a partir de um relatório (mesmos dados da tela). */
 export async function gerarExcel(r: Relatorio, info: { usuario: string; filtros: string }): Promise<Buffer> {
@@ -16,7 +16,7 @@ export async function gerarExcel(r: Relatorio, info: { usuario: string; filtros:
   // título e informações
   ws.mergeCells(1, 1, 1, n);
   ws.getCell(1, 1).value = r.titulo;
-  ws.getCell(1, 1).font = { bold: true, size: 14, color: { argb: "FF0A1B29" } };
+  ws.getCell(1, 1).font = { bold: true, size: 14, color: { argb: "FF0B3A4A" } };
   ws.mergeCells(2, 1, 2, n);
   ws.getCell(2, 1).value = `Gerado em ${formatarDataHora(new Date())} por ${info.usuario} · ${info.filtros}`;
   ws.getCell(2, 1).font = { size: 9, color: { argb: "FF5A6B7B" } };
@@ -27,9 +27,9 @@ export async function gerarExcel(r: Relatorio, info: { usuario: string; filtros:
     const cel = cab.getCell(i + 1);
     cel.value = c.titulo;
     cel.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0E2434" } };
+    cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B3A4A" } };
     cel.alignment = { vertical: "middle", horizontal: c.tipo === "moeda" || c.tipo === "numero" ? "right" : "left", wrapText: true };
-    cel.border = { bottom: { style: "thin", color: { argb: "FFBEF91B" } } };
+    cel.border = { bottom: { style: "thin", color: { argb: "FF2EDCB0" } } };
     ws.getColumn(i + 1).width = c.largura;
   });
   cab.height = 30;
