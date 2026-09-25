@@ -1,8 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 import { urlBanco } from "@/lib/banco.mjs";
+import { criarBancoDemo } from "./bancoDemo";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({ datasourceUrl: urlBanco() });
+/** Com PostgreSQL conectado usa o banco real; sem ele, o modo demonstração. */
+function criar() {
+  const url = urlBanco();
+  return url ? new PrismaClient({ datasourceUrl: url }) : criarBancoDemo();
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma = globalForPrisma.prisma ?? criar();
+
+globalForPrisma.prisma = prisma;

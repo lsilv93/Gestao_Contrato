@@ -16,10 +16,10 @@ if (url) {
   process.env.DATABASE_URL_UNPOOLED = urlBancoDireta();
   console.log("[build] Banco de dados encontrado.");
 } else {
-  // Sem banco: publica mesmo assim; o site mostra a tela /configurar com o passo a passo.
+  // Sem banco: publica em MODO DEMONSTRAÇÃO (PostgreSQL embutido, em memória, com dados de exemplo).
   const nomes = Object.keys(process.env).filter((k) => /POSTGRES|DATABASE|PRISMA|STORAGE|NEON|^PG/.test(k));
   console.warn(
-    "\n[build] ATENÇÃO: nenhum banco PostgreSQL conectado — o site vai abrir a tela de configuração.\n" +
+    "\n[build] ATENÇÃO: nenhum banco PostgreSQL conectado — o sistema vai rodar em MODO DEMONSTRAÇÃO (dados temporários).\n" +
       `Variáveis relacionadas encontradas: ${nomes.length ? nomes.join(", ") : "nenhuma"}\n` +
       "Na Vercel: projeto → Storage → Create Database → Prisma Postgres (ou Neon) → Connect\n" +
       "(marque Production e Preview) e depois Deployments → ⋯ → Redeploy.\n",

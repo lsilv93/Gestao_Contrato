@@ -27,8 +27,8 @@ let chave: Promise<Uint8Array> | null = null;
 function secret(): Promise<Uint8Array> {
   if (!chave) {
     const db = urlBanco();
-    const base = process.env.AUTH_SECRET || (db ? `gc-session:${db}` : "");
-    if (!base) throw new Error("AUTH_SECRET/DATABASE_URL não configurados");
+    // modo demonstração (sem banco): chave fixa — os dados também são fictícios
+    const base = process.env.AUTH_SECRET || `gc-session:${db ?? "modo-demonstracao"}`;
     chave = process.env.AUTH_SECRET
       ? Promise.resolve(new TextEncoder().encode(base))
       : crypto.subtle.digest("SHA-256", new TextEncoder().encode(base)).then((h) => new Uint8Array(h));

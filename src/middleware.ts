@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { urlBanco } from "@/lib/banco.mjs";
 
 /** Rotas exclusivas da consultoria (ADMIN). */
 const SOMENTE_ADMIN = ["/transportadoras", "/usuarios", "/auditoria", "/api/v1/transportadoras", "/api/v1/auditoria"];
@@ -17,14 +16,6 @@ const casa = (path: string, prefixo: string) => path === prefixo || path.startsW
  */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-
-  // Sem banco conectado: tudo leva à tela de configuração.
-  if (!urlBanco()) {
-    if (pathname === "/configurar") return NextResponse.next();
-    if (pathname.startsWith("/api/")) return NextResponse.json({ erro: "Banco de dados não configurado" }, { status: 503 });
-    return NextResponse.redirect(new URL("/configurar", req.url));
-  }
-  if (pathname === "/configurar") return NextResponse.redirect(new URL("/", req.url));
   const sessao = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const naLogin = pathname === "/login";
   if (pathname === "/sair") return NextResponse.next();
