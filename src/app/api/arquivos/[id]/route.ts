@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getUsuarioAtual } from "@/server/auth";
 import { podeVer } from "@/server/escopo";
+import { clienteBloqueado } from "@/server/pendencias";
 import { prisma } from "@/server/prisma";
 
 /**
- * Download de PDF/Word. O cliente só baixa arquivos de documentos do próprio
- * CNPJ; arquivos órfãos (sem documento vinculado) são exclusivos do ADMIN.
+ * Download de PDF/Word (contratos, licenças, manuais e NFs). O cliente só baixa
+ * arquivos do próprio CNPJ; arquivos órfãos (sem documento vinculado) são
+ * exclusivos do ADMIN. Cliente bloqueado por inadimplência baixa apenas NFs.
  */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const u = await getUsuarioAtual();
@@ -17,12 +19,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       contract: { select: { carrierId: true } },
       license: { select: { carrierId: true } },
       manual: { select: { carrierId: true } },
+      service: { select: { carrierId: true } },
     },
   });
-  const carrierId = f?.contract?.carrierId ?? f?.license?.carrierId ?? f?.manual?.carrierId;
+  const carrierId = f?.contract?.carrierId ?? f?.license?.carrierId ?? f?.manual?.carrierId ?? f?.service?.carrierId;
   const permitido = f && (u.perfil === "ADMIN" || (carrierId && podeVer(u, carrierId)));
   // 404 também quando não é permitido: não revela a existência do arquivo
   if (!f || !permitido) return NextResponse.json({ erro: "Arquivo não encontrado" }, { status: 404 });
+  // Acesso suspenso por inadimplência: o cliente só baixa as NFs (para pagamento)
+  if (!f.service && (await clienteBloqueado(u))) {
+    return NextResponse.json({ erro: "Acesso suspenso por pendência financeira superior a 30 dias", bloqueado: true }, { status: 403 });
+  }
 
   const nome = encodeURIComponent(f.fileName);
   return new NextResponse(Buffer.from(f.data), {

@@ -3,11 +3,13 @@
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/server/prisma";
 import { carregarUsuario, requireUsuario } from "@/server/auth";
 import { auditar } from "@/server/auditoria";
-import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
+import { clienteBloqueado } from "@/server/pendencias";
+import { COOKIE_AVISO, SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
 import { falha, sucesso, tratarErro, type Estado } from "./estado";
 
 export async function entrar(_: Estado, form: FormData): Promise<Estado> {
@@ -34,11 +36,24 @@ export async function entrar(_: Estado, form: FormData): Promise<Estado> {
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
+  if (usuario.perfil === "CLIENT") {
+    // Inadimplência > 30 dias: vai direto para a tela de bloqueio
+    if (await clienteBloqueado(usuario)) redirect("/bloqueio");
+    // Pendências de até 30 dias: o aviso (pop-up) aparece uma vez por login
+    (await cookies()).set(COOKIE_AVISO, "1", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SESSION_MAX_AGE });
+  }
   redirect("/");
+}
+
+/** "OK / Ciente" do aviso de pendência: fecha o pop-up até o próximo login. */
+export async function confirmarAviso() {
+  (await cookies()).delete(COOKIE_AVISO);
+  revalidatePath("/", "layout");
 }
 
 export async function sair() {
   (await cookies()).delete(SESSION_COOKIE);
+  (await cookies()).delete(COOKIE_AVISO);
   redirect("/login");
 }
 

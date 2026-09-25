@@ -144,6 +144,9 @@ model FinancialService {
   paymentDate   DateTime?       @db.Date
   amount        Decimal         @db.Decimal(14, 2)
   status        FinancialStatus @default(PENDING)
+  /// PDF da Nota Fiscal (baixado pelo cliente no aviso de pendência / bloqueio).
+  fileId        String?         @unique
+  file          StoredFile?     @relation("ServiceFile", fields: [fileId], references: [id], onDelete: SetNull)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -212,6 +215,7 @@ model StoredFile {
   contract Contract?            @relation("ContractFile")
   license  SanitaryLicense?     @relation("LicenseFile")
   manual   GoodPracticesManual? @relation("ManualFile")
+  service  FinancialService?    @relation("ServiceFile")
 
   @@map("stored_files")
 }

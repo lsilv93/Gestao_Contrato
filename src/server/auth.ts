@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { AcessoNegado } from "./erros";
+import { clienteBloqueado } from "./pendencias";
 import { SESSION_COOKIE, verifySession, type Perfil } from "@/lib/session";
 
 export type UsuarioAtual = {
@@ -45,6 +46,8 @@ export async function requireUsuario(): Promise<UsuarioAtual> {
   const usuario = await getUsuarioAtual();
   // Token válido mas usuário inativado/sem vínculo: /sair apaga o cookie (evita laço login ↔ dashboard).
   if (!usuario) redirect("/sair");
+  // Cliente com NF vencida há mais de 30 dias: acesso suspenso (só a tela de bloqueio)
+  if (await clienteBloqueado(usuario)) redirect("/bloqueio");
   return usuario;
 }
 

@@ -2,11 +2,19 @@ import { Menu } from "@/components/Menu";
 import { requireUsuario } from "@/server/auth";
 import { formatarCnpj } from "@/lib/formatos";
 import { modoDemo } from "@/lib/modo";
+import { cookies } from "next/headers";
+import { AvisoPendencias } from "@/components/AvisoPendencias";
+import { TabelaPendencias } from "@/components/Pendencias";
+import { COOKIE_AVISO } from "@/lib/session";
+import { pendenciasCliente } from "@/server/pendencias";
 
 export const dynamic = "force-dynamic";
 
 export default async function SistemaLayout({ children }: { children: React.ReactNode }) {
   const usuario = await requireUsuario();
+  // Cliente: aviso de pendências (até 30 dias) uma vez por login
+  const mostrarAviso = usuario.perfil === "CLIENT" && (await cookies()).get(COOKIE_AVISO)?.value === "1";
+  const avisos = mostrarAviso ? (await pendenciasCliente(usuario)).avisos : [];
   return (
     <div className="min-h-screen">
       <Menu usuario={usuario} cnpjFormatado={usuario.carrier ? formatarCnpj(usuario.carrier.cnpj) : null} />
@@ -21,6 +29,11 @@ export default async function SistemaLayout({ children }: { children: React.Reac
           {children}
         </div>
       </main>
+      {avisos.length > 0 && (
+        <AvisoPendencias>
+          <TabelaPendencias itens={avisos} />
+        </AvisoPendencias>
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { useState } from "react";
 import clsx from "clsx";
 import {
   BookOpenCheck,
+  FileSpreadsheet,
   FileSignature,
   History,
   KeyRound,
@@ -35,6 +36,7 @@ const grupos: { titulo: string; itens: Item[] }[] = [
     ],
   },
   { titulo: "Financeiro", itens: [{ href: "/faturamento", rotulo: "Serviços & Faturamento", rotuloCliente: "Cobranças em aberto", icone: ReceiptText }] },
+  { titulo: "Gestão", itens: [{ href: "/relatorios", rotulo: "Relatórios", icone: FileSpreadsheet }] },
   {
     titulo: "Administração",
     itens: [

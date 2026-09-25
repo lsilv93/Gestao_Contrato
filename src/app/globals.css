@@ -358,11 +358,12 @@
     @apply min-w-full text-[12px];
     border-collapse: collapse;
   }
-  .tabela th {
+  /* :where() zera a especificidade: utilitários de cor/alinhamento na célula prevalecem */
+  .tabela :where(th) {
     @apply whitespace-nowrap px-4 pb-2 pt-4 text-left text-[10px] font-semibold uppercase text-t4;
     letter-spacing: 0.12em;
   }
-  .tabela td {
+  .tabela :where(td) {
     @apply whitespace-nowrap px-4 py-3 text-t2;
   }
   .tabela tbody tr {

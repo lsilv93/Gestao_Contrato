@@ -5,6 +5,8 @@ import { prisma } from "@/server/prisma";
 import { exigirAdmin } from "@/server/auth";
 import { auditar } from "@/server/auditoria";
 import { ErroNegocio } from "@/server/erros";
+import { lerArquivo } from "@/server/arquivos";
+import { excluirArquivo, substituirArquivo } from "./documentos";
 import { diaDe, diaLocal } from "@/lib/datas";
 import { campos, concluir, data, dataOpcional, id, lerId, obrigatorio, opcional, valor } from "./comum";
 import { tratarErro, type Estado } from "./estado";
@@ -39,9 +41,13 @@ export async function salvarServico(_: Estado, form: FormData): Promise<Estado> 
       const c = await prisma.contract.findUnique({ where: { id: d.contractId } });
       if (!c || c.carrierId !== d.carrierId) throw new ErroNegocio("O contrato escolhido não pertence a esta transportadora.");
     }
+    const arquivo = await lerArquivo(form);
     const s = await prisma.$transaction(async (tx) => {
       const antes = idAtual ? await tx.financialService.findUniqueOrThrow({ where: { id: idAtual } }) : null;
-      const s = idAtual ? await tx.financialService.update({ where: { id: idAtual }, data: d }) : await tx.financialService.create({ data: d });
+      // PDF da NF (opcional): um novo arquivo substitui o anterior
+      const fileId = await substituirArquivo(tx, arquivo, u, antes?.fileId);
+      const dados = { ...d, ...(fileId ? { fileId } : {}) };
+      const s = idAtual ? await tx.financialService.update({ where: { id: idAtual }, data: dados }) : await tx.financialService.create({ data: dados });
       await auditar(tx, { usuario: u, action: idAtual ? "UPDATE" : "CREATE", entityName: "FinancialService", entityId: s.id, details: antes ? { antes, depois: s } : s });
       return s;
     });
@@ -88,6 +94,7 @@ export async function excluirServico(_: Estado, form: FormData): Promise<Estado>
     const s = await prisma.$transaction(async (tx) => {
       const s = await tx.financialService.delete({ where: { id: idAtual } });
       await auditar(tx, { usuario: u, action: "DELETE", entityName: "FinancialService", entityId: s.id, details: s });
+      if (s.fileId) await excluirArquivo(tx, s.fileId, u);
       return s;
     });
     msg = `NF ${s.invoiceNumber} excluída.`;

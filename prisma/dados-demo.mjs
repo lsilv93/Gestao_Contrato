@@ -92,8 +92,10 @@ export async function popularDemo(prisma, { criarAdmin = false } = {}) {
       await log("CREATE", "Contract", k.id, { title: titulo });
     }
     for (const [nf, tipo, valor, venc, pago] of p.nfs) {
+      const fNf = await prisma.storedFile.create({ data: { ...pdf(`NF ${nf}`), uploadedById: admin?.id } });
       const s = await prisma.financialService.create({
         data: {
+          fileId: fNf.id,
           carrierId: c.id,
           contractId: contratos.find((k) => k.contractType === tipo)?.id,
           contractType: tipo,

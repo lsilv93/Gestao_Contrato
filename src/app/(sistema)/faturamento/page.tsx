@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CheckCircle2, History, Plus } from "lucide-react";
 import { excluirServico, marcarPago, salvarServico } from "@/actions/faturamento";
 import { BotaoEditar, BotaoExcluir } from "@/components/Acoes";
-import { Campo, Selecao, Voltar } from "@/components/Campos";
+import { Campo, CampoArquivo, LinkArquivo, Selecao, Voltar } from "@/components/Campos";
 import { FormFiltro } from "@/components/Filtros";
 import { FiltroTransportadora, opcoesSelect } from "@/components/FiltroTransportadora";
 import { FormAcao } from "@/components/FormAcao";
@@ -97,6 +97,7 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
                   <th className="!text-right">Valor</th>
                   <th>Pagamento</th>
                   <th>Status</th>
+                  <th>NF (PDF)</th>
                   {admin && <th />}
                 </tr>
               </thead>
@@ -122,6 +123,7 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
                       <td className="num text-right text-t1">{formatarMoeda(s.amount)}</td>
                       <td className="num">{formatarData(s.paymentDate)}</td>
                       <td><StatusBadge status={s.situacao} rotulo={rotuloStatusFaturamento[s.situacao]} /></td>
+                      <td><LinkArquivo arquivo={s.file} compacto /></td>
                       {admin && (
                         <td>
                           <div className="flex items-center justify-end gap-2">
@@ -196,6 +198,7 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
               ]}
             />
             <Campo nome="paymentDate" rotulo="Data de pagamento (se pago)" type="date" valor={editando?.paymentDate ? diaDe(editando.paymentDate) : ""} />
+            <CampoArquivo rotulo="PDF da Nota Fiscal (opcional, até 4 MB)" atual={editando?.file} className="sm:col-span-2" />
           </FormAcao>
         </Modal>
       )}
@@ -255,6 +258,7 @@ async function CobrancasCliente({ usuario, sp }: { usuario: UsuarioAtual; sp: Pa
                   <th>Tipo</th>
                   <th>Vencimento</th>
                   <th>Status</th>
+                  <th>NF (PDF)</th>
                 </tr>
               </thead>
               <tbody>
@@ -268,6 +272,7 @@ async function CobrancasCliente({ usuario, sp }: { usuario: UsuarioAtual; sp: Pa
                       <p className="text-[10px] text-t4">{textoPrazo(c.dueDate)}</p>
                     </td>
                     <td><StatusBadge status={c.situacao} rotulo={rotuloCobranca[c.situacao]} /></td>
+                    <td><LinkArquivo arquivo={c.file} compacto /></td>
                   </tr>
                 ))}
               </tbody>

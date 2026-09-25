@@ -56,6 +56,26 @@ Tabela com filtros por número da NF, tipo de contrato, transportadora e status.
 ### Dashboard
 Filtros **Mês/Ano** ou **Visão geral** e, para o administrador, **Transportadora**. Mostra o valor total de contratos com % e valores PJ x SPOT, as NFs emitidas, pagas, vencidas e pendentes (com totais em R$) e painéis de alerta de Contratos, Licenças (com a transportadora) e Manuais. Os contadores e os itens dos faróis abrem a listagem já filtrada.
 
+### Inadimplência do Cliente (aviso e bloqueio)
+Verificada no login **e a cada requisição** (`src/server/pendencias.ts`):
+- **NF pendente ou vencida há até 30 dias** → ao entrar, pop-up *Aviso de pendência financeira* com NF, valor, vencimento, dias em atraso e botão **Baixar NF**; fecha em **OK / Ciente** (volta no próximo login).
+- **NF vencida há mais de 30 dias** → acesso **suspenso**: todas as telas levam a `/bloqueio` e a API responde 403. A tela mostra a(s) NF(s), valores, vencimentos, **Baixar NF** e o contato da consultoria (variável `CONSULTORIA_CONTATO`, opcional). Durante o bloqueio o cliente só consegue baixar NFs.
+- **Desbloqueio automático:** assim que o ADM marca a NF como *Paga*, o acesso volta (basta recarregar ou entrar de novo).
+- `GET /api/v1/pendencias` (funciona mesmo bloqueado): `{ bloqueado, bloqueantes, avisos }`.
+- O ADM anexa o **PDF da NF** no lançamento/edição em *Serviços & Faturamento*.
+
+### Relatórios e exportação para Excel
+Menu **Relatórios** (ADM e Cliente). Filtros: período (data inicial/final), transportadoras (**seleção múltipla**, ADM), status (Em dia, A vencer, Vencido, Pago, Pendente) e tipo. O botão **Exportar para Excel (.xlsx)** gera, com `exceljs`, exatamente o que está na tela (título, filtros aplicados, cabeçalho fixo, autofiltro, moeda e datas formatadas, status coloridos, totais).
+
+| Tipo | Conteúdo |
+|---|---|
+| Relatório Geral de Compliance Sanitário | Transportadora, CNPJ, licença ANVISA, status, validade, dias p/ vencer, versão do Manual BPA, próxima revisão, nº de POPs |
+| Faturamento & Cobranças | Transportadora, NF, tipo PJ/SPOT, valor, vencimento, pagamento, status, dias em atraso (+ total) |
+| Licenças Sanitárias / Manuais & POPs | Listas detalhadas com situação pelo farol |
+| Visão Geral Executiva (ADM) | Por transportadora: contratos vigentes e valor, NFs em aberto/vencidas e valores, maior atraso, licença, manuais, acesso liberado/bloqueado |
+
+Cliente: sempre e só o próprio CNPJ; no financeiro, apenas cobranças em aberto/atraso e sem valores; sem visão executiva.
+
 ### Arquivos (PDF/Word)
 Os arquivos ficam guardados **no próprio PostgreSQL** (tabela `stored_files`, até 4 MB cada) para que o download passe sempre pela checagem de CNPJ, sem links públicos. PDFs abrem no navegador; arquivos Word são baixados.
 

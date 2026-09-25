@@ -4,6 +4,8 @@ import { jwtVerify } from "jose/jwt/verify";
 import { urlBanco } from "./banco.mjs";
 
 export const SESSION_COOKIE = "gc_session";
+/** Marca "mostrar o aviso de pendência financeira" (definida no login do cliente). */
+export const COOKIE_AVISO = "gc_aviso";
 export const SESSION_MAX_AGE = 60 * 60 * 12; // 12 horas
 
 export type Perfil = "ADMIN" | "CLIENT";

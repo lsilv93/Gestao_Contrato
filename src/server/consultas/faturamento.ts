@@ -7,7 +7,7 @@ import type { UsuarioAtual } from "../auth";
 import { escopoCarrier } from "../escopo";
 import { AcessoNegado } from "../erros";
 import { prisma } from "../prisma";
-import { carrierResumo, param, paramEnum, type Params } from "./filtros";
+import { arquivoResumo, carrierResumo, param, paramEnum, type Params } from "./filtros";
 
 export type FiltroFaturamento = { carrierId?: string; tipo?: ContractType; status?: StatusFaturamento; nf?: string };
 
@@ -37,7 +37,7 @@ export async function listarServicos(u: UsuarioAtual, f: FiltroFaturamento = {})
   };
   const lista = await prisma.financialService.findMany({
     where,
-    include: { carrier: carrierResumo, contract: { select: { id: true, title: true } } },
+    include: { carrier: carrierResumo, contract: { select: { id: true, title: true } }, file: arquivoResumo },
     orderBy: [{ dueDate: "asc" }, { invoiceNumber: "asc" }],
     take: 1000,
   });
@@ -69,7 +69,7 @@ export async function listarCobrancasCliente(u: UsuarioAtual, f: { situacao?: Si
       ...(f.situacao === "OVERDUE" ? { dueDate: { lt: hoje } } : f.situacao === "PENDING" ? { dueDate: { gte: hoje } } : {}),
       ...(f.nf ? { invoiceNumber: { contains: f.nf, mode: "insensitive" } } : {}),
     },
-    select: { id: true, invoiceNumber: true, contractType: true, dueDate: true },
+    select: { id: true, invoiceNumber: true, contractType: true, dueDate: true, file: arquivoResumo },
     orderBy: [{ dueDate: "asc" }, { invoiceNumber: "asc" }],
     take: 500,
   });
@@ -88,6 +88,6 @@ export const lerFiltroCobrancas = (sp: Params) => ({
 
 export async function buscarServico(u: UsuarioAtual, id: string) {
   if (u.perfil !== "ADMIN") return null;
-  const s = await prisma.financialService.findFirst({ where: { id, ...escopoCarrier(u) }, include: { carrier: carrierResumo } });
+  const s = await prisma.financialService.findFirst({ where: { id, ...escopoCarrier(u) }, include: { carrier: carrierResumo, file: arquivoResumo } });
   return s ? { ...s, amount: Number(s.amount) } : null;
 }
