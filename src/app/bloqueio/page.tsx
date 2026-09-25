@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Lock, LogOut, Phone, RefreshCw } from "lucide-react";
 import { BotaoTema } from "@/components/BotaoTema";
-import { CaminhaoAnimado } from "@/components/CaminhaoAnimado";
 import { TabelaPendencias } from "@/components/Pendencias";
 import { formatarCnpj } from "@/lib/formatos";
 import { getUsuarioAtual } from "@/server/auth";
@@ -25,9 +24,6 @@ export default async function BloqueioPage() {
         <BotaoTema />
       </div>
       <div className="card entrada w-full max-w-3xl p-6 sm:p-8">
-        <div className="poco mb-6 overflow-hidden px-6 pb-2 pt-4">
-          <CaminhaoAnimado modo="parado" className="mx-auto max-w-[280px]" titulo="Caminhão parado para manutenção" />
-        </div>
         <div className="mb-6 flex items-start gap-4">
           <span className="poco-erro flex h-12 w-12 flex-none items-center justify-center !rounded-2xl text-erro">
             <Lock className="h-6 w-6" />

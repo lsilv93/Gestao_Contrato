@@ -1,41 +1,51 @@
 import clsx from "clsx";
 
+/** Cores da marca L&K (azul-petróleo e verde-menta). */
+export const MARCA = { petroleo: "#0B3A4A", menta: "#2EDCB0", claro: "#EAF7F4" } as const;
+
 /**
- * Símbolo L&K: cápsula farmacêutica inclinada (metade cheia, metade contorno)
- * com linhas de movimento — farmácia + logística, em traço único (currentColor).
+ * Monograma L&K: L baixo + K alto; o topo das duas letras desenha a diagonal
+ * que sobe para a direita (triângulo oculto: consultoria, cliente e ANVISA),
+ * com o "+" farmacêutico dentro e os braços do K avançando como movimento.
+ * `mono`: tudo em currentColor (ex.: dentro de botões).
  */
-export function SimboloLK({ className }: { className?: string }) {
+export function SimboloLK({ className, tinta = MARCA.claro, mono = false }: { className?: string; tinta?: string; mono?: boolean }) {
+  const menta = mono ? "currentColor" : MARCA.menta;
+  const traco = mono ? "currentColor" : tinta;
   return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden fill="none">
-      <g transform="rotate(-35 17 14)">
-        <path d="M17 9h-5.5a5 5 0 0 0 0 10H17z" fill="currentColor" />
-        <path d="M17 9h5.5a5 5 0 0 1 0 10H17" stroke="currentColor" strokeWidth="2" />
-        <path d="M17 8.4v11.2" stroke="currentColor" strokeWidth="1.2" />
+    <svg viewBox="0 0 120 120" className={className} aria-hidden fill="none">
+      {!mono && <path d="M16 96V50L66 18V96Z" fill={MARCA.menta} opacity=".2" />}
+      <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={mono ? 12 : 10}>
+        <path d="M16 50V96H50M66 18V96" stroke={traco} />
+        <path d="M66 62L98 30M77 73L98 96" stroke={menta} />
       </g>
-      <path d="M2.5 24.5h6M5 28.5h7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".7" />
+      {!mono && <path d="M36 64v14M29 71h14" stroke={menta} strokeWidth="5" strokeLinecap="round" />}
     </svg>
   );
 }
 
-/** Selo lima com o símbolo em tinta escura. */
+/** Selo azul-petróleo com o monograma nas cores da marca. */
 export function SeloLK({ tamanho = "md", className }: { tamanho?: "sm" | "md" | "lg"; className?: string }) {
   const t = {
-    sm: "h-9 w-9 rounded-2xl [&_svg]:h-5 [&_svg]:w-5",
-    md: "h-11 w-11 rounded-2xl [&_svg]:h-6 [&_svg]:w-6",
-    lg: "h-16 w-16 rounded-[22px] [&_svg]:h-9 [&_svg]:w-9",
+    sm: "h-9 w-9 rounded-xl [&_svg]:h-6 [&_svg]:w-6",
+    md: "h-11 w-11 rounded-2xl [&_svg]:h-7 [&_svg]:w-7",
+    lg: "h-[72px] w-[72px] rounded-[22px] [&_svg]:h-12 [&_svg]:w-12",
   }[tamanho];
   return (
-    <span className={clsx("fill-acento flex flex-none items-center justify-center", t, className)}>
-      <SimboloLK />
+    <span
+      className={clsx("flex flex-none items-center justify-center", t, className)}
+      style={{ background: "linear-gradient(150deg, #0F4A5D 0%, #082C38 100%)", boxShadow: "var(--sombra-xs)" }}
+    >
+      <SimboloLK className="translate-x-[1px]" />
     </span>
   );
 }
 
-/** Logotipo "L&K": letras firmes com o "&" leve em acento. */
+/** Logotipo "L&K" com o "&" em menta. */
 export function LogotipoLK({ className }: { className?: string }) {
   return (
-    <span className={clsx("inline-flex items-baseline font-extrabold leading-none tracking-[-0.04em] text-t1", className)}>
-      L<span className="mx-[0.04em] font-light text-acento">&amp;</span>K
+    <span className={clsx("inline-flex items-baseline font-extrabold leading-none tracking-[0.02em] text-t1", className)}>
+      L<span className="mx-[0.03em]" style={{ color: MARCA.menta }}>&amp;</span>K
     </span>
   );
 }
@@ -46,7 +56,7 @@ export function MarcaLK({ complemento }: { complemento: React.ReactNode }) {
     <div className="flex items-center gap-3">
       <SeloLK />
       <div className="min-w-0">
-        <LogotipoLK className="text-[19px]" />
+        <LogotipoLK className="text-[18px]" />
         <div className="mt-1 leading-tight">{complemento}</div>
       </div>
     </div>

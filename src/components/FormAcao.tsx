@@ -22,8 +22,8 @@ export function BotaoEnviar({
     <button type="submit" className={className} disabled={enviando} aria-busy={enviando}>
       {enviando ? (
         <>
-          {/* carregamento: caminhão L&K em movimento, na cor da tinta do botão */}
-          <SimboloLK className="cam-anda h-4 w-4 flex-none" />
+          {/* carregamento: monograma L&K em movimento, na cor da tinta do botão */}
+          <SimboloLK mono className="cam-anda h-4 w-4 flex-none" />
           {textoEnviando}
         </>
       ) : (

@@ -470,42 +470,7 @@
 .entrada > *:nth-child(7) { animation-delay: 300ms; }
 .entrada > *:nth-child(n + 8) { animation-delay: 350ms; }
 
-/* ---------- caminhão animado (SVG) ---------- */
-.cam-roda {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: cam-girar 0.7s linear infinite;
-}
-.cam-faixa {
-  animation: cam-faixa 0.7s linear infinite;
-}
-.cam-balanco {
-  animation: cam-balanco 1.4s ease-in-out infinite;
-}
-.cam-vento {
-  animation: cam-vento 1.1s ease-in-out infinite;
-}
-.cam-vento-2 {
-  animation-delay: 0.25s;
-}
-.cam-vento-3 {
-  animation-delay: 0.5s;
-}
-.cam-pisca {
-  animation: cam-pisca 1s steps(2, jump-none) infinite;
-}
-.cam-farol {
-  animation: cam-farol 2.2s ease-in-out infinite;
-}
-@keyframes cam-farol {
-  0%,
-  100% {
-    opacity: 0.75;
-  }
-  50% {
-    opacity: 1;
-  }
-}
+/* ---------- monograma em movimento (botão "Salvando...") ---------- */
 .cam-anda {
   animation: cam-anda 0.9s ease-in-out infinite alternate;
 }
@@ -517,61 +482,6 @@
     transform: translateX(2px);
   }
 }
-.cam-chave {
-  transform-box: fill-box;
-  transform-origin: 25% 25%;
-  animation: cam-chave 2.4s ease-in-out infinite;
-}
-@keyframes cam-girar {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@keyframes cam-faixa {
-  to {
-    stroke-dashoffset: 30;
-  }
-}
-@keyframes cam-balanco {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-1.2px);
-  }
-}
-@keyframes cam-vento {
-  0% {
-    opacity: 0;
-    transform: translateX(10px);
-  }
-  40% {
-    opacity: 0.8;
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(-14px);
-  }
-}
-@keyframes cam-pisca {
-  0% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.15;
-  }
-}
-@keyframes cam-chave {
-  0%,
-  100% {
-    transform: rotate(-12deg);
-  }
-  50% {
-    transform: rotate(14deg);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
