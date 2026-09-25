@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
-import { datasDoCiclo, farolEmissao, mesAnterior } from "@/domain/cicloFaturamento";
+import { competencia, datasDoCiclo, farolEmissao, mesAnterior, mesSeguinte } from "@/domain/cicloFaturamento";
 import { diaDe, diaLocal, hojeData } from "@/lib/datas";
 import { auditar } from "./auditoria";
 import { carrierResumo, nomeCarrier } from "./consultas/filtros";
@@ -9,8 +9,10 @@ import { prisma } from "./prisma";
 /**
  * Gera as pendências "NF pendente de emissão" do ciclo mensal (idempotente).
  *
- * Para cada contrato VIGENTE, avalia a competência do mês atual e a do mês
- * anterior (para não perder um ciclo se a verificação não rodou na virada do mês):
+ * Para cada contrato VIGENTE, avalia a competência do mês atual, a do mês
+ * anterior (para não perder um ciclo se a verificação não rodou na virada do mês)
+ * e a do mês seguinte (antecedência que cruza a virada: emissão dia 2 com 5 dias
+ * de antecedência nasce no fim do mês anterior):
  *  - a pendência nasce `emissionLeadDays` antes do dia de emissão;
  *  - o contrato precisa estar vigente na data de emissão;
  *  - o mês anterior só é gerado se o contrato já estava cadastrado naquela data
@@ -20,7 +22,11 @@ import { prisma } from "./prisma";
  */
 export async function gerarPendenciasEmissao(hoje: string = diaLocal()): Promise<{ geradas: number; avaliadas: number }> {
   const [ano, mes] = hoje.split("-").map(Number);
-  const competencias: [number, number, "atual" | "anterior"][] = [[ano, mes, "atual"], [...mesAnterior(ano, mes), "anterior"]];
+  const competencias: [number, number, "atual" | "anterior" | "seguinte"][] = [
+    [ano, mes, "atual"],
+    [...mesAnterior(ano, mes), "anterior"],
+    [...mesSeguinte(ano, mes), "seguinte"],
+  ];
   const contratos = await prisma.contract.findMany({
     where: { status: "ACTIVE", carrier: { active: true } },
     select: {
@@ -28,10 +34,20 @@ export async function gerarPendenciasEmissao(hoje: string = diaLocal()): Promise
       emissionLeadDays: true, billingAmount: true, startDate: true, expirationDate: true, createdAt: true,
     },
   });
+  // competências já geradas (qualquer status): não tenta inserir de novo
+  const existentes = new Set(
+    (
+      await prisma.financialService.findMany({
+        where: { contractId: { in: contratos.map((c) => c.id) }, competence: { in: competencias.map(([a, m]) => competencia(a, m)) } },
+        select: { contractId: true, competence: true },
+      })
+    ).map((s) => `${s.contractId}|${s.competence}`),
+  );
   let geradas = 0;
   for (const c of contratos) {
     for (const [a, m, qual] of competencias) {
       const ciclo = datasDoCiclo(c, a, m);
+      if (existentes.has(`${c.id}|${ciclo.competencia}`)) continue;
       if (diaDe(ciclo.geracao) > hoje) continue; // ainda não é hora
       if (c.expirationDate < ciclo.emissao || (c.startDate && c.startDate > ciclo.emissao)) continue; // fora da vigência
       if (qual === "anterior" && diaDe(ciclo.emissao) < diaLocal(c.createdAt)) continue; // sem retroativo
@@ -61,7 +77,7 @@ export async function gerarPendenciasEmissao(hoje: string = diaLocal()): Promise
         });
         geradas++;
       } catch (e) {
-        // já existe pendência desta competência (unique contractId+competence): nada a fazer
+        // gerada ao mesmo tempo por outra execução (unique contractId+competence): nada a fazer
         if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
       }
     }

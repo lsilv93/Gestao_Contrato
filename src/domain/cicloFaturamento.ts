@@ -21,6 +21,11 @@ export function mesAnterior(ano: number, mes: number): [number, number] {
   return mes === 1 ? [ano - 1, 12] : [ano, mes - 1];
 }
 
+/** Mês seguinte de uma competência. */
+export function mesSeguinte(ano: number, mes: number): [number, number] {
+  return mes === 12 ? [ano + 1, 1] : [ano, mes + 1];
+}
+
 export type RegraFaturamento = { invoiceDay: number; dueDay: number; emissionLeadDays: number };
 
 /**
@@ -30,7 +35,7 @@ export type RegraFaturamento = { invoiceDay: number; dueDay: number; emissionLea
  */
 export function datasDoCiclo(regra: RegraFaturamento, ano: number, mes: number) {
   const emissao = diaNoMes(ano, mes, regra.invoiceDay);
-  const [anoV, mesV] = regra.dueDay > regra.invoiceDay ? [ano, mes] : mes === 12 ? [ano + 1, 1] : [ano, mes + 1];
+  const [anoV, mesV] = regra.dueDay > regra.invoiceDay ? [ano, mes] : mesSeguinte(ano, mes);
   const vencimento = diaNoMes(anoV, mesV, regra.dueDay);
   const geracao = somarDias(emissao, -regra.emissionLeadDays);
   return { competencia: competencia(ano, mes), emissao, vencimento, geracao };
