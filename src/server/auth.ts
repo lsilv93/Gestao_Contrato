@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
@@ -20,11 +21,12 @@ export type UsuarioAtual = {
  * transportadoras) inativados perdem o acesso imediatamente, e o CNPJ vale o
  * que está gravado — não o que veio no token.
  */
-export async function getUsuarioAtual(): Promise<UsuarioAtual | null> {
+// cache(): layout, página e componentes da mesma requisição compartilham uma única consulta
+export const getUsuarioAtual = cache(async (): Promise<UsuarioAtual | null> => {
   const sessao = await verifySession((await cookies()).get(SESSION_COOKIE)?.value);
   if (!sessao) return null;
   return carregarUsuario(sessao.sub);
-}
+});
 
 export async function carregarUsuario(id: string): Promise<UsuarioAtual | null> {
   const u = await prisma.user.findUnique({

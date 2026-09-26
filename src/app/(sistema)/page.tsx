@@ -25,11 +25,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const admin = ehAdmin(usuario);
   const sp = await searchParams;
   const filtro = lerFiltroDashboard(sp);
-  if (admin) await garantirPendenciasEmissao(); // ciclo mensal de NF (idempotente)
   const [d, transportadoras, emissoes] = await Promise.all([
     carregarDashboard(usuario, filtro),
     admin ? opcoesTransportadoras() : [],
-    admin ? listarPendenciasEmissao() : [],
+    // ciclo mensal de NF (idempotente) antes de listar as pendências
+    admin ? garantirPendenciasEmissao().then(() => listarPendenciasEmissao()) : [],
   ]);
 
   // links dos faróis levam o filtro de transportadora junto
@@ -353,7 +353,7 @@ function PendenciasEmissao({ itens }: { itens: PendenciaEmissao[] }) {
         <div className="space-y-2">
           {itens.map((i) => (
             <div key={i.id} className="poco grid items-center gap-3 px-4 py-3 sm:grid-cols-[130px_minmax(0,1.4fr)_minmax(0,1fr)_120px_auto]">
-              <FarolBadge farol={i.farol} rotulo={rotuloEmissao[i.farol]} />
+              <FarolBadge farol={i.farol} rotulo={rotuloEmissao[i.farol]} pulsar />
               <div className="min-w-0">
                 <p className="truncate text-[12px] font-semibold text-t1">{i.transportadora}</p>
                 <p className="num truncate text-[10px] text-t4">{formatarCnpj(i.cnpj)}</p>

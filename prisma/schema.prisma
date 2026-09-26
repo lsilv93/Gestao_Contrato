@@ -5,7 +5,9 @@
 // vencimento com o dia atual no fuso America/Sao_Paulo.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // relações (include) na MESMA consulta (JOIN LATERAL) em vez de uma consulta extra por relação
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {

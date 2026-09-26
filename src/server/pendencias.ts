@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { diaDe, diaLocal, diasAte, hojeData, somarDias } from "@/lib/datas";
 import type { UsuarioAtual } from "./auth";
 import { escopoCarrier } from "./escopo";
@@ -16,12 +17,15 @@ export const DIAS_BLOQUEIO = 30;
 const limiteBloqueio = () => somarDias(hojeData(), -DIAS_BLOQUEIO);
 
 export async function clienteBloqueado(u: UsuarioAtual): Promise<boolean> {
-  if (u.perfil !== "CLIENT") return false;
-  const n = await prisma.financialService.count({
-    where: { ...escopoCarrier(u), status: "PENDING", dueDate: { lt: limiteBloqueio() } },
-  });
-  return n > 0;
+  if (u.perfil !== "CLIENT" || !u.carrier) return false;
+  return carrierBloqueado(u.carrier.id);
 }
+
+// uma consulta por requisição (layout e página verificam o bloqueio)
+const carrierBloqueado = cache(async (carrierId: string) => {
+  const n = await prisma.financialService.count({ where: { carrierId, status: "PENDING", dueDate: { lt: limiteBloqueio() } } });
+  return n > 0;
+});
 
 export type Pendencia = {
   id: string;

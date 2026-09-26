@@ -187,5 +187,14 @@ docker run -d --name gestao-db -e POSTGRES_USER=gestao -e POSTGRES_PASSWORD=gest
 - **Cores:** azul-petróleo `#0B3A4A` e verde-menta `#2EDCB0` (tokens em `src/app/globals.css`; no tema claro o acento de texto é verde-petróleo `#087660` para contraste 4.5:1).
 - **Tipografia:** Montserrat (títulos, rótulos, botões e marca; auto-hospedada via `@fontsource/montserrat`).
 
+## Desempenho
+
+Medido com 50 ms de latência até o banco (Vercel ↔ banco) e CPU 4× mais lenta no navegador:
+- **Listagens paginadas** (50 por página) em Faturamento, Licenças e Documentos, Contratos, Manuais e Auditoria. Com cerca de 3 anos de NFs, o Faturamento caiu de 21 s para 1,2 s para abrir, e a rolagem subiu de 5 para mais de 45 quadros por segundo. No Faturamento, as NFs em aberto vêm primeiro (a emitir e aguardando pagamento) e depois o histórico, da mais recente para a mais antiga. Os totais dos cards são somados no banco. Os relatórios mostram até 100 linhas na tela, e o Excel traz todas.
+- **Menos idas ao banco:** o usuário da sessão e a checagem de bloqueio são lidos uma vez por requisição (`cache`); as relações vêm na mesma consulta (`relationJoins`); o dashboard lê cada entidade uma vez e calcula os faróis em memória (de cerca de 40 consultas para cerca de 10).
+- **Inicialização mais leve:** com banco conectado no build, o PGlite do modo demonstração (cerca de 26 MB) fica fora das funções.
+- **Navegador:** barra de progresso ao trocar de tela, animação de entrada curta, sem desfoque de fundo nos pop-ups e sem pulso/transições nas linhas das tabelas. Respeita "reduzir movimento" do sistema.
+- **Dica de infraestrutura:** deixe a região das funções da Vercel (*Settings → Functions → Function Region*) igual à região do banco. Cada consulta atravessa essa distância.
+
 ## Tema claro / escuro
 O botão de sol/lua na barra superior (e na tela de login) alterna o tema. A escolha fica no **localStorage** e é aplicada por um script no `<head>` antes da pintura, sem "piscar". Sem escolha salva, o sistema segue o tema do sistema operacional.

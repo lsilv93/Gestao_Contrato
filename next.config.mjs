@@ -1,3 +1,10 @@
+import { urlBanco } from "./src/lib/banco.mjs";
+
+// Com banco conectado no build (Vercel), o modo demonstração (PGlite, ~26 MB) fica
+// fora do pacote: funções menores → inicialização (cold start) mais rápida.
+const comBanco = !!urlBanco();
+const PGLITE = ["@electric-sql/pglite", "pglite-prisma-adapter"];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
@@ -5,7 +12,7 @@ const nextConfig = {
     serverActions: { bodySizeLimit: "4.5mb" },
   },
   // Modo demonstração: PostgreSQL embutido (WASM) + migrações lidas em tempo de execução.
-  serverExternalPackages: ["@electric-sql/pglite", "pglite-prisma-adapter", "exceljs"],
+  serverExternalPackages: [...(comBanco ? [] : PGLITE), "exceljs"],
   // Cabeçalhos de segurança em todas as respostas (o HTTPS/HSTS já vem da Vercel).
   async headers() {
     return [
@@ -23,7 +30,11 @@ const nextConfig = {
   },
   poweredByHeader: false,
   outputFileTracingIncludes: {
-    "/**": ["./prisma/migrations/**/*", "./node_modules/@electric-sql/pglite/dist/**/*"],
+    "/**": comBanco ? [] : ["./prisma/migrations/**/*", "./node_modules/@electric-sql/pglite/dist/**/*"],
+  },
+  webpack(config, { isServer }) {
+    if (comBanco && isServer) config.resolve.alias = { ...config.resolve.alias, ...Object.fromEntries(PGLITE.map((p) => [p, false])) };
+    return config;
   },
 };
 

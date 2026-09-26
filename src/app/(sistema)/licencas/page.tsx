@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatarNumero } from "@/lib/formatos";
 import type { DocumentType } from "@prisma/client";
 import { History, Layers, Plus, RefreshCw, ToggleRight } from "lucide-react";
 import { alterarStatusLicenca, excluirLicenca, renovarLicenca, salvarLicenca } from "@/actions/licencas";
@@ -20,7 +21,9 @@ import { formatarCnpj } from "@/lib/formatos";
 import { urlCom } from "@/lib/url";
 import { ehAdmin, requireUsuario } from "@/server/auth";
 import { nomeCarrier, param, type Params } from "@/server/consultas/filtros";
-import { buscarLicenca, contarSituacoes, historicoLicenca, lerFiltroLicencas, listarLicencas } from "@/server/consultas/licencas";
+import { buscarLicenca, contarSituacoes, historicoLicenca, lerFiltroLicencas, paginaLicencas } from "@/server/consultas/licencas";
+import { lerPagina } from "@/server/consultas/filtros";
+import { Paginacao } from "@/components/Paginacao";
 import { opcoesTransportadoras } from "@/server/consultas/transportadoras";
 
 export const metadata = { title: "Licenças e Documentos" };
@@ -36,8 +39,8 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
   const renovarId = admin ? param(sp, "renovar") : undefined;
   const alterarId = admin ? param(sp, "alterar") : undefined;
   const versoesId = param(sp, "versoes");
-  const [lista, transportadoras, editando, renovando, alterando, versoes, situacoes] = await Promise.all([
-    listarLicencas(usuario, filtro),
+  const [{ itens: lista, ...pag }, transportadoras, editando, renovando, alterando, versoes, situacoes] = await Promise.all([
+    paginaLicencas(usuario, filtro, lerPagina(sp)),
     admin ? opcoesTransportadoras() : [],
     editarId ? buscarLicenca(usuario, editarId) : null,
     renovarId ? buscarLicenca(usuario, renovarId) : null,
@@ -141,7 +144,7 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
         </label>
       </FormFiltro>
 
-      <Painel titulo={`${filtro.categoria ? rotuloCategoriaDocumento[filtro.categoria] : "Licenças e Documentos"} (${lista.length})`}>
+      <Painel titulo={`${filtro.categoria ? rotuloCategoriaDocumento[filtro.categoria] : "Licenças e Documentos"} (${formatarNumero(pag.total)})`}>
         {lista.length === 0 ? (
           <Vazio>Nenhum documento encontrado com os filtros atuais.</Vazio>
         ) : (
@@ -234,6 +237,7 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
           <span className="font-semibold text-t2">{SEM_VALIDADE}</span> = AFE / AE sem data de validade (fora dos faróis).
         </p>
         <LegendaFarol />
+        <Paginacao base={BASE} sp={sp} {...pag} />
       </Painel>
 
       {/* ---------- cadastro / edição ---------- */}

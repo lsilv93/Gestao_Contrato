@@ -1,14 +1,13 @@
 import "server-only";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { farolVencimento, type Farol } from "@/domain/farol";
 import { situacaoLicenca } from "@/domain/status";
-import { diaLocal, hojeData, limitesDoMes, somarDias } from "@/lib/datas";
+import { diaDe, diaLocal, hojeData, limitesDoMes, somarDias } from "@/lib/datas";
 import type { UsuarioAtual } from "../auth";
 import { escopoCarrier } from "../escopo";
 import { prisma } from "../prisma";
-import { carrierResumo, condicaoFarol, param, type Params } from "./filtros";
-import { condicaoCategoria } from "./licencas";
-import type { CategoriaDocumento } from "@/domain/tiposDocumento";
+import { carrierResumo, param, type Params } from "./filtros";
+import { categoriaDoTipo, type CategoriaDocumento } from "@/domain/tiposDocumento";
 
 /** Janela das listas de alerta (vencidos + próximos N dias). */
 const JANELA_ALERTA_DIAS = 60;
@@ -22,16 +21,15 @@ export function lerFiltroDashboard(sp: Params): FiltroDashboard {
 
 type Contagem = Record<Farol, number>;
 
-async function contarFarois(contar: (farol: Farol) => Promise<number>): Promise<Contagem> {
-  const [VERMELHO, AMARELO, VERDE] = await Promise.all((["VERMELHO", "AMARELO", "VERDE"] as const).map(contar));
-  return { VERMELHO, AMARELO, VERDE };
-}
-
 /**
  * Métricas do dashboard.
  *  - Mês/Ano: contratos vigentes em algum dia do mês e NFs com vencimento no mês.
  *  - Visão geral: todos os contratos vigentes e todas as NFs.
  * Os painéis de alerta mostram sempre a situação atual (hoje).
+ *
+ * Desempenho: cada entidade é lida UMA vez (só os vigentes, com poucos campos) e
+ * os faróis/contadores são calculados em memória — antes eram ~40 consultas
+ * COUNT separadas, cada uma com a latência de ida e volta ao banco.
  */
 export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
   const escopo = escopoCarrier(u, f.carrierId);
@@ -39,85 +37,75 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
   const hojeTxt = diaLocal();
   const janela = somarDias(hoje, JANELA_ALERTA_DIAS);
   const mes = f.mes ? limitesDoMes(f.mes) : null;
+  const farol = (d: Date) => farolVencimento(d, false, hojeTxt)!;
 
   // Dados financeiros (valores de contratos e faturamento consolidado): somente ADM Geral.
   const admin = u.perfil === "ADMIN";
-  const [financeiro, cobrancas] = await Promise.all([
+  const [financeiro, abertas, contratos, documentos, manuais] = await Promise.all([
     admin ? carregarFinanceiro(escopo, mes, hoje) : null,
     // cobranças em aberto (sem valores) — visão de conferência de todos os perfis
-    Promise.all([
-      prisma.financialService.count({ where: { ...escopo, status: "PENDING", dueDate: { gte: hoje } } }),
-      prisma.financialService.count({ where: { ...escopo, status: "PENDING", dueDate: { lt: hoje } } }),
-    ]).then(([aVencer, emAtraso]) => ({ aVencer, emAtraso })),
-  ]);
-
-  // ---------------- alertas de vencimento (hoje) ----------------
-  const [farolContratos, licencas, documentos, farolManuais, alertaContratos, alertaManuais] = await Promise.all([
-    contarFarois((fa) => prisma.contract.count({ where: { ...escopo, status: "ACTIVE", expirationDate: condicaoFarol(fa) } })),
-    alertasDocumentos(escopo, "LICENCA", janela, hojeTxt),
-    alertasDocumentos(escopo, "DOCUMENTO", janela, hojeTxt),
-    contarFarois((fa) => prisma.goodPracticesManual.count({ where: { ...escopo, reviewDate: condicaoFarol(fa) } })),
+    prisma.financialService.findMany({ where: { ...escopo, status: "PENDING" }, select: { dueDate: true } }),
     prisma.contract.findMany({
-      where: { ...escopo, status: "ACTIVE", expirationDate: { lte: janela } },
-      include: { carrier: carrierResumo },
+      where: { ...escopo, status: "ACTIVE" },
+      select: { id: true, title: true, contractType: true, amount: true, expirationDate: true, carrier: carrierResumo },
       orderBy: { expirationDate: "asc" },
-      take: 8,
+    }),
+    prisma.sanitaryLicense.findMany({
+      where: { ...escopo, status: "CURRENT" },
+      select: { id: true, status: true, documentType: true, licenseNumber: true, expirationDate: true, carrier: carrierResumo },
+      orderBy: { expirationDate: { sort: "asc", nulls: "last" } },
     }),
     prisma.goodPracticesManual.findMany({
-      where: { ...escopo, reviewDate: { lte: janela } },
-      include: { carrier: carrierResumo },
+      where: { ...escopo, reviewDate: { not: null } },
+      select: { id: true, title: true, category: true, version: true, reviewDate: true, carrier: carrierResumo },
       orderBy: { reviewDate: "asc" },
-      take: 8,
     }),
   ]);
+
+  const contar = (datas: Date[]): Contagem => {
+    const c: Contagem = { VERMELHO: 0, AMARELO: 0, VERDE: 0 };
+    for (const d of datas) c[farol(d)]++;
+    return c;
+  };
+  const alertar = <T,>(lista: T[], data: (x: T) => Date) => lista.filter((x) => data(x) <= janela).slice(0, 8);
+
+  const porCategoria = (categoria: CategoriaDocumento) => {
+    const lista = documentos.filter((l) => categoriaDoTipo(l.documentType) === categoria);
+    const comValidade = lista.filter((l): l is typeof l & { expirationDate: Date } => !!l.expirationDate);
+    return {
+      farois: contar(comValidade.map((l) => l.expirationDate)),
+      /** documentos vigentes da categoria */
+      total: lista.length,
+      semValidade: lista.length - comValidade.length,
+      itens: alertar(comValidade, (l) => l.expirationDate).map((l) => ({ ...l, farol: farol(l.expirationDate), situacao: situacaoLicenca(l, hojeTxt) })),
+    };
+  };
+  const manuaisComData = manuais.filter((m): m is typeof m & { reviewDate: Date } => !!m.reviewDate);
 
   return {
     /** null para o Cliente / Transportador */
     contratos: financeiro?.contratos ?? null,
     /** null para o Cliente / Transportador */
     faturamento: financeiro?.faturamento ?? null,
-    cobrancas,
+    cobrancas: { aVencer: abertas.filter((s) => s.dueDate >= hoje).length, emAtraso: abertas.filter((s) => s.dueDate < hoje).length },
     alertas: {
       janelaDias: JANELA_ALERTA_DIAS,
       contratos: {
-        farois: farolContratos,
-        itens: alertaContratos.map((c) => ({ ...c, amount: Number(c.amount), farol: farolVencimento(c.expirationDate, false, hojeTxt)! })),
+        farois: contar(contratos.map((c) => c.expirationDate)),
+        itens: alertar(contratos, (c) => c.expirationDate).map((c) => ({ ...c, amount: Number(c.amount), farol: farol(c.expirationDate) })),
       },
       /** Licença Sanitária & Regulatória */
-      licencas,
+      licencas: porCategoria("LICENCA"),
       /** Documentos Operacionais & Técnicos */
-      documentos,
+      documentos: porCategoria("DOCUMENTO"),
       manuais: {
-        farois: farolManuais,
-        itens: alertaManuais.map((m) => ({ ...m, farol: farolVencimento(m.reviewDate, false, hojeTxt)! })),
+        farois: contar(manuaisComData.map((m) => m.reviewDate)),
+        itens: alertar(manuaisComData, (m) => m.reviewDate).map((m) => ({ ...m, farol: farol(m.reviewDate) })),
       },
     },
   };
 }
 export type Dashboard = Awaited<ReturnType<typeof carregarDashboard>>;
-
-/** Faróis, contador "sem validade" e itens a vencer de uma categoria de Licenças e Documentos. */
-async function alertasDocumentos(escopo: { carrierId?: string }, categoria: CategoriaDocumento, janela: Date, hojeTxt: string) {
-  const base: Prisma.SanitaryLicenseWhereInput = { ...escopo, status: "CURRENT", ...condicaoCategoria(categoria) };
-  const [farois, total, semValidade, itens] = await Promise.all([
-    contarFarois((fa) => prisma.sanitaryLicense.count({ where: { ...base, expirationDate: condicaoFarol(fa) } })),
-    prisma.sanitaryLicense.count({ where: base }),
-    prisma.sanitaryLicense.count({ where: { ...base, expirationDate: null } }),
-    prisma.sanitaryLicense.findMany({
-      where: { ...base, expirationDate: { lte: janela } },
-      include: { carrier: carrierResumo },
-      orderBy: { expirationDate: "asc" },
-      take: 8,
-    }),
-  ]);
-  return {
-    farois,
-    /** documentos vigentes da categoria */
-    total,
-    semValidade,
-    itens: itens.map((l) => ({ ...l, expirationDate: l.expirationDate!, farol: farolVencimento(l.expirationDate, false, hojeTxt)!, situacao: situacaoLicenca(l, hojeTxt) })),
-  };
-}
 
 /** Métricas financeiras do dashboard (somente ADM Geral). */
 async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio: Date; fim: Date } | null, hoje: Date) {
@@ -129,7 +117,19 @@ async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio:
         OR: [{ startDate: null }, { startDate: { lt: mes.fim } }],
       }
     : { ...escopo, status: "ACTIVE" };
-  const porTipo = await prisma.contract.groupBy({ by: ["contractType"], where: whereContratos, _sum: { amount: true }, _count: true });
+  // contratos e NFs em paralelo: duas consultas agregadas
+  const [porTipo, linhas] = await Promise.all([
+    prisma.contract.groupBy({ by: ["contractType"], where: whereContratos, _sum: { amount: true }, _count: true }),
+    // faturamento: tipo × status × vencida (datas como texto → ::date, sem depender do fuso da sessão)
+    prisma.$queryRaw<{ tipo: "PJ" | "SPOT"; status: string; vencida: boolean; quantidade: number; valor: string | number }[]>`
+      SELECT "contractType"::text AS tipo, "status"::text AS status, ("dueDate" < ${diaDe(hoje)}::date) AS vencida,
+             COUNT(*)::int AS quantidade, COALESCE(SUM("amount"), 0) AS valor
+        FROM "financial_services"
+       WHERE "status"::text NOT IN ('CANCELED', 'PENDING_EMISSION')
+         ${escopo.carrierId ? Prisma.sql`AND "carrierId" = ${escopo.carrierId}` : Prisma.empty}
+         ${mes ? Prisma.sql`AND "dueDate" >= ${diaDe(mes.inicio)}::date AND "dueDate" < ${diaDe(mes.fim)}::date` : Prisma.empty}
+       GROUP BY 1, 2, 3`,
+  ]);
   const tipo = (t: "PJ" | "SPOT") => {
     const g = porTipo.find((p) => p.contractType === t);
     return { valor: Number(g?._sum.amount ?? 0), quantidade: g?._count ?? 0 };
@@ -138,22 +138,9 @@ async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio:
   const spot = tipo("SPOT");
   const totalContratos = pj.valor + spot.valor;
 
-  // ---------------- faturamento ----------------
-  const baseNF: Prisma.FinancialServiceWhereInput = { ...escopo, status: { notIn: ["CANCELED", "PENDING_EMISSION"] }, ...(mes ? { dueDate: { gte: mes.inicio, lt: mes.fim } } : {}) };
-  const somaNF = (where: Prisma.FinancialServiceWhereInput) =>
-    prisma.financialService.aggregate({ where: { ...baseNF, ...where }, _sum: { amount: true }, _count: true });
-  const [emitidas, pagas, vencidas, pendentes, nfPorTipo] = await Promise.all([
-    somaNF({}),
-    somaNF({ status: "PAID" }),
-    somaNF({ status: "PENDING", dueDate: { ...(mes ? { gte: mes.inicio } : {}), lt: mes && mes.fim < hoje ? mes.fim : hoje } }),
-    somaNF({ status: "PENDING", dueDate: { gte: mes && mes.inicio > hoje ? mes.inicio : hoje, ...(mes ? { lt: mes.fim } : {}) } }),
-    prisma.financialService.groupBy({ by: ["contractType"], where: baseNF, _sum: { amount: true }, _count: true }),
-  ]);
-  const nf = (a: typeof emitidas) => ({ quantidade: a._count, valor: Number(a._sum.amount ?? 0) });
-  const nfTipo = (t: "PJ" | "SPOT") => {
-    const g = nfPorTipo.find((p) => p.contractType === t);
-    return { quantidade: g?._count ?? 0, valor: Number(g?._sum.amount ?? 0) };
-  };
+  const somar = (filtro: (l: (typeof linhas)[number]) => boolean) =>
+    linhas.filter(filtro).reduce((a, l) => ({ quantidade: a.quantidade + Number(l.quantidade), valor: a.valor + Number(l.valor) }), { quantidade: 0, valor: 0 });
+  const nfTipo = (t: "PJ" | "SPOT") => somar((l) => l.tipo === t);
 
   return {
     contratos: {
@@ -163,10 +150,10 @@ async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio:
       spot: { ...spot, percentual: totalContratos ? spot.valor / totalContratos : 0 },
     },
     faturamento: {
-      emitidas: nf(emitidas),
-      pagas: nf(pagas),
-      vencidas: nf(vencidas),
-      pendentes: nf(pendentes),
+      emitidas: somar(() => true),
+      pagas: somar((l) => l.status === "PAID"),
+      vencidas: somar((l) => l.status === "PENDING" && l.vencida),
+      pendentes: somar((l) => l.status === "PENDING" && !l.vencida),
       pj: nfTipo("PJ"),
       spot: nfTipo("SPOT"),
     },

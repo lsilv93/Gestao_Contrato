@@ -16,7 +16,7 @@ export const rotuloEntidade: Record<string, string> = {
 
 export const rotuloAcao: Record<AuditAction, string> = { CREATE: "Inclusão", UPDATE: "Edição", DELETE: "Exclusão" };
 
-export const POR_PAGINA = 100;
+export const POR_PAGINA = 50;
 
 export function lerFiltroAuditoria(sp: Params) {
   const de = param(sp, "de");

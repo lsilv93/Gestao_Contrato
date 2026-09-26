@@ -101,14 +101,24 @@ export function Ponto({ farol, pulsante }: { farol: Farol; pulsante?: boolean })
   return (
     <span
       className={clsx("ponto", estiloFarol[farol].cor, pulsante && "ponto-pulsante")}
-      style={pulsante ? { animationName: farol === "VERMELHO" ? "pulso-erro" : "pulso" } : undefined}
       aria-hidden
     />
   );
 }
 
 /** Badge do farol. Sem farol (registro resolvido) mostra o `rotuloResolvido`. */
-export function FarolBadge({ farol, rotulo, rotuloResolvido = "Concluído" }: { farol: Farol | null; rotulo?: string; rotuloResolvido?: string }) {
+export function FarolBadge({
+  farol,
+  rotulo,
+  rotuloResolvido = "Concluído",
+  pulsar = false,
+}: {
+  farol: Farol | null;
+  rotulo?: string;
+  rotuloResolvido?: string;
+  /** pulso só em destaques pontuais: em listas longas, dezenas de animações travavam a rolagem */
+  pulsar?: boolean;
+}) {
   if (!farol) {
     return (
       <span className="pill bg-t4/10 text-t3">
@@ -120,7 +130,7 @@ export function FarolBadge({ farol, rotulo, rotuloResolvido = "Concluído" }: { 
   const e = estiloFarol[farol];
   return (
     <span className={clsx("pill", e.cor, e.fundo)} title={e.descricao}>
-      <span className={clsx("ponto", farol === "VERMELHO" && "ponto-pulsante")} style={farol === "VERMELHO" ? { animationName: "pulso-erro" } : undefined} />
+      <span className={clsx("ponto", pulsar && farol === "VERMELHO" && "ponto-pulsante")} />
       {rotulo ?? e.rotulo}
     </span>
   );

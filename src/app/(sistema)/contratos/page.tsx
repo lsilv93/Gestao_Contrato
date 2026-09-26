@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatarNumero } from "@/lib/formatos";
 import { History, Plus } from "lucide-react";
 import { excluirContrato, salvarContrato } from "@/actions/contratos";
 import { BotaoEditar, BotaoExcluir } from "@/components/Acoes";
@@ -15,7 +16,9 @@ import { diaDe, formatarData } from "@/lib/datas";
 import { formatarCnpj, formatarMoeda } from "@/lib/formatos";
 import { urlCom } from "@/lib/url";
 import { ehAdmin, requireUsuario } from "@/server/auth";
-import { buscarContrato, lerFiltroContratos, listarContratos } from "@/server/consultas/contratos";
+import { buscarContrato, lerFiltroContratos, paginaContratos, totalVigentes } from "@/server/consultas/contratos";
+import { lerPagina } from "@/server/consultas/filtros";
+import { Paginacao } from "@/components/Paginacao";
 import { nomeCarrier, param, type Params } from "@/server/consultas/filtros";
 import { opcoesTransportadoras } from "@/server/consultas/transportadoras";
 
@@ -29,13 +32,13 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
   const filtro = lerFiltroContratos(sp);
   const editarId = admin ? param(sp, "editar") : undefined;
   const novo = admin && param(sp, "novo") === "1";
-  const [lista, transportadoras, editando] = await Promise.all([
-    listarContratos(usuario, filtro),
+  const [{ itens: lista, ...pag }, total, transportadoras, editando] = await Promise.all([
+    paginaContratos(usuario, filtro, lerPagina(sp)),
+    admin ? totalVigentes(usuario, filtro) : 0,
     admin ? opcoesTransportadoras() : [],
     editarId ? buscarContrato(usuario, editarId) : null,
   ]);
   const aqui = urlCom(BASE, sp);
-  const total = lista.reduce((a, c) => a + (c.status === "ACTIVE" ? (c.amount ?? 0) : 0), 0);
 
   return (
     <>
@@ -67,7 +70,7 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
       </FormFiltro>
 
       <Painel
-        titulo={`Contratos (${lista.length})`}
+        titulo={`Contratos (${formatarNumero(pag.total)})`}
         acoes={admin && <span className="text-[11px] text-t3">Vigentes na lista: <span className="num font-semibold text-t1">{formatarMoeda(total)}</span></span>}
       >
         {lista.length === 0 ? (
@@ -132,6 +135,7 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
           </Tabela>
         )}
         <LegendaFarol />
+        <Paginacao base={BASE} sp={sp} {...pag} />
       </Painel>
 
       {(novo || editando) && (

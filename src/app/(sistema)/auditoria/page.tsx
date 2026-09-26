@@ -5,7 +5,8 @@ import { Cabecalho, Painel, StatusBadge, Tabela, Vazio } from "@/components/ui";
 import { formatarDataHora } from "@/lib/datas";
 import { urlCom } from "@/lib/url";
 import { requireAdmin } from "@/server/auth";
-import { lerFiltroAuditoria, listarAuditoria, rotuloAcao, rotuloEntidade } from "@/server/consultas/auditoria";
+import { POR_PAGINA, lerFiltroAuditoria, listarAuditoria, rotuloAcao, rotuloEntidade } from "@/server/consultas/auditoria";
+import { Paginacao } from "@/components/Paginacao";
 import type { Params } from "@/server/consultas/filtros";
 import { prisma } from "@/server/prisma";
 
@@ -41,7 +42,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
         </div>
       </FormFiltro>
 
-      <Painel titulo={`Registros (${total})`} acoes={paginas > 1 && <Paginacao pagina={filtro.pagina} paginas={paginas} sp={sp} />}>
+      <Painel titulo={`Registros (${total})`} acoes={paginas > 1 && <span className="text-[11px] text-t3">Página {filtro.pagina} de {paginas}</span>}>
         {itens.length === 0 ? (
           <Vazio>Nenhum registro com os filtros atuais.</Vazio>
         ) : (
@@ -97,17 +98,8 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
             </table>
           </Tabela>
         )}
+        <Paginacao base={BASE} sp={sp} pagina={filtro.pagina} paginas={paginas} total={total} porPagina={POR_PAGINA} />
       </Painel>
     </>
-  );
-}
-
-function Paginacao({ pagina, paginas, sp }: { pagina: number; paginas: number; sp: Params }) {
-  return (
-    <div className="flex items-center gap-2 text-[11px] text-t3">
-      {pagina > 1 && <Link className="btn-secondary btn-sm" href={urlCom(BASE, sp, { pagina: String(pagina - 1) })}>Anterior</Link>}
-      Página {pagina} de {paginas}
-      {pagina < paginas && <Link className="btn-secondary btn-sm" href={urlCom(BASE, sp, { pagina: String(pagina + 1) })}>Próxima</Link>}
-    </div>
   );
 }

@@ -108,7 +108,7 @@ export function Menu({
               >
                 <FileWarning className="h-5 w-5" />
                 <span className="num">{emissao.total}</span>
-                {emissao.atrasadas > 0 && <span className="ponto ponto-pulsante absolute right-1.5 top-1.5 text-erro" style={{ animationName: "pulso-erro" }} />}
+                {emissao.atrasadas > 0 && <span className="ponto ponto-pulsante absolute right-1.5 top-1.5 text-erro" />}
               </Link>
             )}
             <BotaoTema />

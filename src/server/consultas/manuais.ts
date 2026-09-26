@@ -5,7 +5,7 @@ import { diaLocal } from "@/lib/datas";
 import type { UsuarioAtual } from "../auth";
 import { escopoCarrier } from "../escopo";
 import { prisma } from "../prisma";
-import { arquivoResumo, carrierResumo, condicaoFarol, param, paramEnum, paramFarol, type Params } from "./filtros";
+import { arquivoResumo, carrierResumo, condicaoFarol, paginar, param, paramEnum, paramFarol, type Faixa, type Params } from "./filtros";
 
 export type FiltroManuais = { carrierId?: string; categoria?: ManualCategory; farol?: Farol; busca?: string };
 
@@ -16,18 +16,22 @@ export const lerFiltroManuais = (sp: Params): FiltroManuais => ({
   busca: param(sp, "busca"),
 });
 
-export async function listarManuais(u: UsuarioAtual, f: FiltroManuais = {}) {
-  const where: Prisma.GoodPracticesManualWhereInput = {
-    ...escopoCarrier(u, f.carrierId),
-    ...(f.categoria ? { category: f.categoria } : {}),
-    ...(f.farol ? { reviewDate: condicaoFarol(f.farol) } : {}),
-    ...(f.busca ? { title: { contains: f.busca, mode: "insensitive" } } : {}),
-  };
+const whereManuais = (u: UsuarioAtual, f: FiltroManuais): Prisma.GoodPracticesManualWhereInput => ({
+  ...escopoCarrier(u, f.carrierId),
+  ...(f.categoria ? { category: f.categoria } : {}),
+  ...(f.farol ? { reviewDate: condicaoFarol(f.farol) } : {}),
+  ...(f.busca ? { title: { contains: f.busca, mode: "insensitive" } } : {}),
+});
+
+export const paginaManuais = (u: UsuarioAtual, f: FiltroManuais, pagina: number) =>
+  paginar(pagina, () => prisma.goodPracticesManual.count({ where: whereManuais(u, f) }), (faixa) => listarManuais(u, f, faixa));
+
+export async function listarManuais(u: UsuarioAtual, f: FiltroManuais = {}, faixa: Faixa = { skip: 0, take: 500 }) {
   const lista = await prisma.goodPracticesManual.findMany({
-    where,
+    where: whereManuais(u, f),
     include: { carrier: carrierResumo, file: arquivoResumo },
-    orderBy: [{ carrier: { legalName: "asc" } }, { title: "asc" }],
-    take: 500,
+    orderBy: [{ carrier: { legalName: "asc" } }, { title: "asc" }, { id: "asc" }],
+    ...faixa,
   });
   const hoje = diaLocal();
   return lista.map((m) => ({ ...m, farol: farolVencimento(m.reviewDate, false, hoje) }));

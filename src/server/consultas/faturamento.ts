@@ -1,5 +1,5 @@
 import "server-only";
-import type { ContractType, Prisma } from "@prisma/client";
+import type { ContractType, FinancialStatus, Prisma } from "@prisma/client";
 import { farolVencimento } from "@/domain/farol";
 import { farolEmissao } from "@/domain/cicloFaturamento";
 import { statusFaturamento, type StatusFaturamento } from "@/domain/status";
@@ -8,7 +8,7 @@ import type { UsuarioAtual } from "../auth";
 import { escopoCarrier } from "../escopo";
 import { AcessoNegado } from "../erros";
 import { prisma } from "../prisma";
-import { arquivoResumo, carrierResumo, param, paramEnum, type Params } from "./filtros";
+import { arquivoResumo, carrierResumo, paginar, param, paramEnum, type Params } from "./filtros";
 
 export type FiltroFaturamento = { carrierId?: string; tipo?: ContractType; status?: StatusFaturamento; nf?: string };
 
@@ -27,21 +27,71 @@ function condicaoStatus(status: StatusFaturamento): Prisma.FinancialServiceWhere
   return { status };
 }
 
+const whereServicos = (u: UsuarioAtual, f: FiltroFaturamento): Prisma.FinancialServiceWhereInput => ({
+  ...escopoCarrier(u, f.carrierId),
+  ...(f.tipo ? { contractType: f.tipo } : {}),
+  ...(f.status ? condicaoStatus(f.status) : {}),
+  ...(f.nf ? { invoiceNumber: { contains: f.nf, mode: "insensitive" } } : {}),
+});
+const incluirServico = { carrier: carrierResumo, contract: { select: { id: true, title: true } }, file: arquivoResumo } as const;
+const ABERTOS: FinancialStatus[] = ["PENDING_EMISSION", "PENDING"];
+
 /** Faturamento completo (valores, pagamentos, histórico): somente ADM Geral. */
 export async function listarServicos(u: UsuarioAtual, f: FiltroFaturamento = {}) {
   if (u.perfil !== "ADMIN") throw new AcessoNegado();
-  const where: Prisma.FinancialServiceWhereInput = {
-    ...escopoCarrier(u, f.carrierId),
-    ...(f.tipo ? { contractType: f.tipo } : {}),
-    ...(f.status ? condicaoStatus(f.status) : {}),
-    ...(f.nf ? { invoiceNumber: { contains: f.nf, mode: "insensitive" } } : {}),
-  };
   const lista = await prisma.financialService.findMany({
-    where,
-    include: { carrier: carrierResumo, contract: { select: { id: true, title: true } }, file: arquivoResumo },
+    where: whereServicos(u, f),
+    include: incluirServico,
     orderBy: [{ dueDate: "asc" }, { invoiceNumber: "asc" }],
     take: 1000,
   });
+  return comSituacao(lista);
+}
+
+/**
+ * Página do faturamento: primeiro o que está EM ABERTO (a emitir e aguardando
+ * pagamento, do mais urgente para o menos), depois o histórico (pagas e
+ * canceladas, da mais recente para a mais antiga).
+ */
+export async function paginaServicos(u: UsuarioAtual, f: FiltroFaturamento, pagina: number) {
+  if (u.perfil !== "ADMIN") throw new AcessoNegado();
+  const where = whereServicos(u, f);
+  const abertos: Prisma.FinancialServiceWhereInput = { AND: [where, { status: { in: ABERTOS } }] };
+  const fechados: Prisma.FinancialServiceWhereInput = { AND: [where, { status: { notIn: ABERTOS } }] };
+  const qtdAbertos = await prisma.financialService.count({ where: abertos });
+  return paginar(
+    pagina,
+    async () => qtdAbertos + (await prisma.financialService.count({ where: fechados })),
+    async ({ skip, take }) => {
+      const [a, b] = await Promise.all([
+        skip < qtdAbertos
+          ? prisma.financialService.findMany({ where: abertos, include: incluirServico, orderBy: [{ dueDate: "asc" }, { id: "asc" }], skip, take })
+          : [],
+        skip + take > qtdAbertos
+          ? prisma.financialService.findMany({
+              where: fechados,
+              include: incluirServico,
+              orderBy: [{ dueDate: "desc" }, { id: "desc" }],
+              skip: Math.max(0, skip - qtdAbertos),
+              take: Math.min(take, skip + take - qtdAbertos),
+            })
+          : [],
+      ]);
+      return comSituacao([...a, ...b]);
+    },
+  );
+}
+
+/** Totais por situação (Atrasado / A vencer / Pago) com os filtros atuais — somados no banco, não na página. */
+export async function totaisServicos(u: UsuarioAtual, f: FiltroFaturamento) {
+  const where = whereServicos(u, f);
+  const somar = (s: "OVERDUE" | "PENDING" | "PAID") =>
+    prisma.financialService.aggregate({ where: { AND: [where, condicaoStatus(s)] }, _sum: { amount: true } }).then((r) => Number(r._sum.amount ?? 0));
+  const [OVERDUE, PENDING, PAID] = await Promise.all([somar("OVERDUE"), somar("PENDING"), somar("PAID")]);
+  return { OVERDUE, PENDING, PAID };
+}
+
+function comSituacao<T extends { status: FinancialStatus; dueDate: Date; emissionDate: Date | null; amount: Prisma.Decimal }>(lista: T[]) {
   const hoje = diaLocal();
   return lista.map((s) => ({
     ...s,

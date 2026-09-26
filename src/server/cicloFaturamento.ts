@@ -126,9 +126,7 @@ export type PendenciaEmissao = Awaited<ReturnType<typeof listarPendenciasEmissao
 /** Contagem para o notificador do cabeçalho. */
 export async function contarPendenciasEmissao() {
   const hoje = hojeData();
-  const [total, atrasadas] = await Promise.all([
-    prisma.financialService.count({ where: { status: "PENDING_EMISSION" } }),
-    prisma.financialService.count({ where: { status: "PENDING_EMISSION", emissionDate: { lt: hoje } } }),
-  ]);
-  return { total, atrasadas };
+  // roda em toda página do ADM: uma consulta só (as pendências abertas são poucas)
+  const lista = await prisma.financialService.findMany({ where: { status: "PENDING_EMISSION" }, select: { emissionDate: true } });
+  return { total: lista.length, atrasadas: lista.filter((s) => s.emissionDate && s.emissionDate < hoje).length };
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatarNumero } from "@/lib/formatos";
 import { History, Plus } from "lucide-react";
 import { excluirManual, salvarManual } from "@/actions/manuais";
 import { BotaoEditar, BotaoExcluir } from "@/components/Acoes";
@@ -15,7 +16,9 @@ import { formatarCnpj } from "@/lib/formatos";
 import { urlCom } from "@/lib/url";
 import { ehAdmin, requireUsuario } from "@/server/auth";
 import { nomeCarrier, param, type Params } from "@/server/consultas/filtros";
-import { buscarManual, lerFiltroManuais, listarManuais } from "@/server/consultas/manuais";
+import { buscarManual, lerFiltroManuais, paginaManuais } from "@/server/consultas/manuais";
+import { lerPagina } from "@/server/consultas/filtros";
+import { Paginacao } from "@/components/Paginacao";
 import { opcoesTransportadoras } from "@/server/consultas/transportadoras";
 
 export const metadata = { title: "Manuais & POPs" };
@@ -29,8 +32,8 @@ export default async function ManuaisPage({ searchParams }: { searchParams: Prom
   const filtro = lerFiltroManuais(sp);
   const novo = admin && param(sp, "novo") === "1";
   const editarId = admin ? param(sp, "editar") : undefined;
-  const [lista, transportadoras, editando] = await Promise.all([
-    listarManuais(usuario, filtro),
+  const [{ itens: lista, ...pag }, transportadoras, editando] = await Promise.all([
+    paginaManuais(usuario, filtro, lerPagina(sp)),
     admin ? opcoesTransportadoras() : [],
     editarId ? buscarManual(usuario, editarId) : null,
   ]);
@@ -64,7 +67,7 @@ export default async function ManuaisPage({ searchParams }: { searchParams: Prom
         <Campo prefixo="filtro" nome="busca" rotulo="Buscar título" valor={filtro.busca} placeholder="Enter para buscar" />
       </FormFiltro>
 
-      <Painel titulo={`Documentos (${lista.length})`}>
+      <Painel titulo={`Documentos (${formatarNumero(pag.total)})`}>
         {lista.length === 0 ? (
           <Vazio>Nenhum documento encontrado com os filtros atuais.</Vazio>
         ) : (
@@ -118,6 +121,7 @@ export default async function ManuaisPage({ searchParams }: { searchParams: Prom
           </Tabela>
         )}
         <LegendaFarol />
+        <Paginacao base={BASE} sp={sp} {...pag} />
       </Painel>
 
       {(novo || editando) && (

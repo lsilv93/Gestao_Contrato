@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { Menu } from "@/components/Menu";
+import { ProgressoNavegacao } from "@/components/ProgressoNavegacao";
 import { requireUsuario } from "@/server/auth";
 import { formatarCnpj } from "@/lib/formatos";
 import { modoDemo } from "@/lib/modo";
@@ -15,12 +17,16 @@ export default async function SistemaLayout({ children }: { children: React.Reac
   const usuario = await requireUsuario();
   // Cliente: aviso de pendências (até 30 dias) uma vez por login
   const mostrarAviso = usuario.perfil === "CLIENT" && (await cookies()).get(COOKIE_AVISO)?.value === "1";
-  const avisos = mostrarAviso ? (await pendenciasCliente(usuario)).avisos : [];
-  // ADM: ciclo mensal de NF — gera as pendências do dia e alimenta o notificador do cabeçalho
-  if (usuario.perfil === "ADMIN") await garantirPendenciasEmissao();
-  const emissao = usuario.perfil === "ADMIN" ? await contarPendenciasEmissao() : null;
+  const [avisos, emissao] = await Promise.all([
+    mostrarAviso ? pendenciasCliente(usuario).then((p) => p.avisos) : [],
+    // ADM: ciclo mensal de NF — gera as pendências do dia e alimenta o notificador do cabeçalho
+    usuario.perfil === "ADMIN" ? garantirPendenciasEmissao().then(() => contarPendenciasEmissao()) : null,
+  ]);
   return (
     <div className="min-h-screen">
+      <Suspense>
+        <ProgressoNavegacao />
+      </Suspense>
       <Menu usuario={usuario} cnpjFormatado={usuario.carrier ? formatarCnpj(usuario.carrier.cnpj) : null} emissao={emissao} />
       <main className="lg:pl-[268px]">
         <div className="entrada mx-auto max-w-7xl px-[14px] py-6 sm:px-6 lg:px-8 lg:py-8">

@@ -34,3 +34,20 @@ export const arquivoResumo = { select: { id: true, fileName: true, size: true, m
 export const carrierResumo = { select: { id: true, cnpj: true, legalName: true, tradeName: true } } as const;
 
 export const nomeCarrier = (c: { legalName: string; tradeName: string | null }) => c.tradeName || c.legalName;
+
+// ---------------- paginação das listagens ----------------
+/** Linhas por página: tabelas longas (milhares de NFs) travavam o navegador. */
+export const POR_PAGINA = 50;
+export type Faixa = { skip: number; take: number };
+export type Pagina<T> = { itens: T[]; total: number; pagina: number; paginas: number; porPagina: number };
+
+export const lerPagina = (sp: Params) => Math.max(1, Math.floor(Number(param(sp, "pagina"))) || 1);
+
+/** Conta e busca a página em paralelo; página além do fim volta para a última. */
+export async function paginar<T>(pagina: number, contar: () => Promise<number>, buscar: (faixa: Faixa) => Promise<T[]>): Promise<Pagina<T>> {
+  const faixa = (p: number) => ({ skip: (p - 1) * POR_PAGINA, take: POR_PAGINA });
+  const [total, itens] = await Promise.all([contar(), buscar(faixa(pagina))]);
+  const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+  if (pagina > paginas) return { itens: await buscar(faixa(paginas)), total, pagina: paginas, paginas, porPagina: POR_PAGINA };
+  return { itens, total, pagina, paginas, porPagina: POR_PAGINA };
+}

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { formatarNumero } from "@/lib/formatos";
+import { Paginacao } from "@/components/Paginacao";
 import { CheckCircle2, FileUp, History, Plus } from "lucide-react";
 import { confirmarEmissao, excluirServico, marcarPago, salvarServico } from "@/actions/faturamento";
 import { textoEmissao } from "@/domain/cicloFaturamento";
@@ -23,12 +25,13 @@ import {
   lerFiltroCobrancas,
   lerFiltroFaturamento,
   listarCobrancasCliente,
-  listarServicos,
+  paginaServicos,
+  totaisServicos,
   rotuloCobranca,
   type SituacaoCobranca,
 } from "@/server/consultas/faturamento";
 import type { UsuarioAtual } from "@/server/auth";
-import { nomeCarrier, param, type Params } from "@/server/consultas/filtros";
+import { lerPagina, nomeCarrier, param, type Params } from "@/server/consultas/filtros";
 import { opcoesTransportadoras } from "@/server/consultas/transportadoras";
 
 export const metadata = { title: "Faturamento" };
@@ -44,10 +47,11 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
   const editarId = admin ? param(sp, "editar") : undefined;
   const pagarId = admin ? param(sp, "pagar") : undefined;
   const emitirId = admin ? param(sp, "emitir") : undefined;
-  await garantirPendenciasEmissao(); // ciclo mensal: gera as pendências de emissão do dia
+  if (admin) await garantirPendenciasEmissao(); // ciclo mensal: gera as pendências de emissão do dia
   const novo = admin && param(sp, "novo") === "1";
-  const [lista, transportadoras, editando, pagando, contratos, emitindo] = await Promise.all([
-    listarServicos(usuario, filtro),
+  const [{ itens: lista, ...pag }, totais, transportadoras, editando, pagando, contratos, emitindo] = await Promise.all([
+    paginaServicos(usuario, filtro, lerPagina(sp)),
+    totaisServicos(usuario, filtro),
     admin ? opcoesTransportadoras() : [],
     editarId ? buscarServico(usuario, editarId) : null,
     pagarId ? buscarServico(usuario, pagarId) : null,
@@ -56,7 +60,6 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
   ]);
   const aqui = urlCom(BASE, sp);
 
-  const somar = (s: StatusFaturamento) => lista.filter((x) => x.situacao === s).reduce((a, x) => a + x.amount, 0);
   const statusOpcoes = (Object.keys(rotuloStatusFaturamento) as StatusFaturamento[]).map((valor) => ({ valor, rotulo: rotuloStatusFaturamento[valor] }));
 
   return (
@@ -81,12 +84,12 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
         {(["OVERDUE", "PENDING", "PAID"] as const).map((s) => (
           <Link key={s} href={urlCom(BASE, sp, { status: filtro.status === s ? null : s })} className="card-sm flex items-center justify-between gap-3 p-5">
             <StatusBadge status={s} rotulo={rotuloStatusFaturamento[s]} />
-            <span className="num text-[16px] font-semibold text-t1">{formatarMoeda(somar(s))}</span>
+            <span className="num text-[16px] font-semibold text-t1">{formatarMoeda(totais[s])}</span>
           </Link>
         ))}
       </div>
 
-      <Painel titulo={`Notas fiscais (${lista.length})`}>
+      <Painel titulo={`Notas fiscais (${formatarNumero(pag.total)})`}>
         {lista.length === 0 ? (
           <Vazio>Nenhuma NF encontrada com os filtros atuais.</Vazio>
         ) : (
@@ -175,6 +178,7 @@ export default async function FaturamentoPage({ searchParams }: { searchParams: 
           </Tabela>
         )}
         <LegendaFarol />
+        <Paginacao base={BASE} sp={sp} {...pag} />
       </Painel>
 
       {emitindo && (

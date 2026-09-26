@@ -7,7 +7,7 @@ import { diaLocal } from "@/lib/datas";
 import type { UsuarioAtual } from "../auth";
 import { escopoCarrier } from "../escopo";
 import { prisma } from "../prisma";
-import { arquivoResumo, carrierResumo, condicaoFarol, param, paramEnum, paramFarol, type Params } from "./filtros";
+import { arquivoResumo, carrierResumo, condicaoFarol, paginar, param, paramEnum, paramFarol, type Faixa, type Params } from "./filtros";
 
 export type FiltroLicencas = {
   carrierId?: string;
@@ -42,9 +42,8 @@ export function condicaoCategoria(c: CategoriaDocumento | undefined): Prisma.San
   return c === "LICENCA" ? { OR: [tipos, { documentType: null }] } : tipos;
 }
 
-/** Por padrão mostra só a versão mais recente de cada documento; `historico` inclui as renovadas. */
-export async function listarLicencas(u: UsuarioAtual, f: FiltroLicencas = {}) {
-  const where: Prisma.SanitaryLicenseWhereInput = {
+function whereLicencas(u: UsuarioAtual, f: FiltroLicencas): Prisma.SanitaryLicenseWhereInput {
+  return {
     ...escopoCarrier(u, f.carrierId),
     ...(f.farol ? { status: "CURRENT", expirationDate: condicaoFarol(f.farol) } : f.status ? { status: f.status } : {}),
     ...(f.semValidade ? { status: "CURRENT", expirationDate: null } : {}),
@@ -53,11 +52,19 @@ export async function listarLicencas(u: UsuarioAtual, f: FiltroLicencas = {}) {
     ...(f.tipo ? { documentType: f.tipo } : {}),
     ...condicaoCategoria(f.categoria),
   };
+}
+
+/** Página da listagem (vencidas e próximas primeiro). */
+export const paginaLicencas = (u: UsuarioAtual, f: FiltroLicencas, pagina: number) =>
+  paginar(pagina, () => prisma.sanitaryLicense.count({ where: whereLicencas(u, f) }), (faixa) => listarLicencas(u, f, faixa));
+
+/** Por padrão mostra só a versão mais recente de cada documento; `historico` inclui as renovadas. */
+export async function listarLicencas(u: UsuarioAtual, f: FiltroLicencas = {}, faixa: Faixa = { skip: 0, take: 500 }) {
   const lista = await prisma.sanitaryLicense.findMany({
-    where,
+    where: whereLicencas(u, f),
     include: { carrier: carrierResumo, file: arquivoResumo, next: { select: { id: true } } },
-    orderBy: [{ expirationDate: { sort: "asc", nulls: "last" } }],
-    take: 500,
+    orderBy: [{ expirationDate: { sort: "asc", nulls: "last" } }, { id: "asc" }],
+    ...faixa,
   });
   const hoje = diaLocal();
   return lista.map((l) => ({
@@ -76,11 +83,12 @@ export async function contarSituacoes(u: UsuarioAtual, f: Pick<FiltroLicencas, "
     ...(f.tipo ? { documentType: f.tipo } : {}),
     ...condicaoCategoria(f.categoria),
   };
-  const [VERDE, AMARELO, VERMELHO, INDETERMINADA] = await Promise.all([
-    ...(["VERDE", "AMARELO", "VERMELHO"] as const).map((fa) => prisma.sanitaryLicense.count({ where: { ...base, expirationDate: condicaoFarol(fa) } })),
-    prisma.sanitaryLicense.count({ where: { ...base, expirationDate: null } }),
-  ]);
-  return { VERDE, AMARELO, VERMELHO, INDETERMINADA };
+  // uma consulta (só as datas) e a contagem em memória, em vez de 4 COUNT separados
+  const datas = await prisma.sanitaryLicense.findMany({ where: base, select: { expirationDate: true } });
+  const hoje = diaLocal();
+  const total = { VERDE: 0, AMARELO: 0, VERMELHO: 0, INDETERMINADA: 0 };
+  for (const { expirationDate } of datas) total[expirationDate ? farolVencimento(expirationDate, false, hoje)! : "INDETERMINADA"]++;
+  return total;
 }
 
 export async function buscarLicenca(u: UsuarioAtual, id: string) {

@@ -13,7 +13,7 @@ import { opcoesTransportadoras } from "@/server/consultas/transportadoras";
 import { corStatus, gerarRelatorio, lerFiltroRelatorio, STATUS, tiposPermitidos, type Coluna, type Valor } from "@/server/relatorios";
 
 export const metadata = { title: "Relatórios" };
-const LIMITE_TELA = 300;
+const LIMITE_TELA = 100; // tela leve; o Excel traz todas as linhas
 
 export default async function RelatoriosPage({ searchParams }: { searchParams: Promise<Params> }) {
   const usuario = await requireUsuario();
