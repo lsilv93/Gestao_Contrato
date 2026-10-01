@@ -46,7 +46,8 @@ export async function popularDemo(prisma, { criarAdmin = false } = {}) {
   const cicloDemo = (transportadora, tipo, valor, indice) => {
     const base = { billingAmount: tipo === "PJ" ? Math.round(valor / 12) : valor, dueDay: 10, emissionLeadDays: 0 };
     if (transportadora === "TransLog" && indice === 0) return { ...base, invoiceDay: diaHoje, dueDay: Math.min(28, diaHoje + 10) };
-    if (transportadora === "Rápido Cold" && indice === 0) return { ...base, invoiceDay: Math.max(1, diaHoje - 3) };
+    // emissão há 3 dias (pode cair no mês anterior nos dias 1–3): contrato "antigo" para a competência anterior valer
+    if (transportadora === "Rápido Cold" && indice === 0) return { ...base, invoiceDay: d(-3).getUTCDate(), createdAt: d(-90) };
     return { ...base, invoiceDay: diaHoje < 28 ? 28 : 1 }; // demais: fora da janela atual
   };
 

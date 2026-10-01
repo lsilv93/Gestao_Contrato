@@ -9,6 +9,13 @@
    ============================================================ */
 :root,
 [data-theme="dark"] {
+  /* gráficos: estados validados para daltonismo e contraste no fundo escuro
+     (em dia · crítico/a vencer · vencido) e a série única azul-petróleo */
+  --viz-ok: #1a9e7e;
+  --viz-alerta: #bd8418;
+  --viz-critico: #c43c45;
+  --viz-serie: #3f9fc4;
+  --viz-grade: rgba(140, 170, 178, 0.16);
   /* cores (RGB) — usadas pelo Tailwind com suporte a opacidade */
   --c-fundo: 6 32 42;
   --c-acento: 46 220 176; /* verde-menta da marca L&K */
@@ -44,6 +51,12 @@
 /* Tema claro: base gelo-azulada; o acento de texto vira verde-petróleo escuro
    para manter contraste 4.5:1 (menta só em preenchimentos). */
 [data-theme="light"] {
+  /* gráficos no fundo claro (passos próprios, validados contra #e5eef0) */
+  --viz-ok: #0a7d62;
+  --viz-alerta: #d99a1c;
+  --viz-critico: #a81e1e;
+  --viz-serie: #1b6d99;
+  --viz-grade: rgba(66, 99, 109, 0.16);
   --c-fundo: 229 238 240;
   --c-acento: 8 118 96;
   --c-ok: 8 118 96;
@@ -496,6 +509,28 @@
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
   }
+}
+
+/* ---------- gráficos do dashboard ---------- */
+.dica-grafico {
+  border-radius: 12px;
+  background: var(--fundo);
+  box-shadow: var(--sombra-sm);
+  white-space: nowrap;
+}
+/* coluna/linha em foco ou sob o cursor "acende" levemente */
+.coluna-grafico:hover > div:last-child,
+.coluna-grafico:focus-visible > div:last-child {
+  filter: brightness(1.12);
+}
+.coluna-grafico:focus-visible,
+.barra-grafico:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.barra-grafico:hover {
+  background: rgb(var(--c-acento) / 0.05);
 }
 
 /* ---------- barra de progresso da navegação ---------- */

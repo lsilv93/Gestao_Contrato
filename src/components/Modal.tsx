@@ -30,7 +30,11 @@ export function Modal({
     if (d && !d.open) d.showModal();
   }, []);
 
-  const fechar = () => router.replace(fecharHref, { scroll: false });
+  // fecha na hora (mesmo com um envio em andamento) e depois ajusta a URL
+  const fechar = () => {
+    ref.current?.close();
+    router.replace(fecharHref, { scroll: false });
+  };
 
   return (
     <dialog

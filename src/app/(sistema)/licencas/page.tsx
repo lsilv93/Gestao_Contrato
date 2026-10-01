@@ -61,7 +61,7 @@ export default async function LicencasPage({ searchParams }: { searchParams: Pro
       </Cabecalho>
       <BannerOk mensagem={param(sp, "ok")} />
 
-      {/* categoria: Licença Sanitária & Regulatória x Documentos Operacionais & Técnicos */}
+      {/* categoria: Documentos Regulatórios x Documentos Operacionais & Técnicos */}
       <nav className="mb-5 flex flex-wrap gap-2" aria-label="Categoria">
         {([[undefined, "Todos"], ["LICENCA", rotuloCategoriaDocumento.LICENCA], ["DOCUMENTO", rotuloCategoriaDocumento.DOCUMENTO]] as const).map(([c, rotulo]) => (
           <Link

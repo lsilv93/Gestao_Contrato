@@ -18,10 +18,20 @@ export type ArquivoEnviado = { fileName: string; mimeType: string; size: number;
 export async function lerArquivo(form: FormData, campo = "arquivo", aceitos: string[] = ["pdf", "doc", "docx"]): Promise<ArquivoEnviado | null> {
   const f = form.get(campo);
   if (!(f instanceof File) || f.size === 0) return null;
+  return validarArquivo(f, aceitos);
+}
+
+/** Todos os arquivos de um campo múltiplo (upload em lote), validados um a um. */
+export async function lerArquivos(form: FormData, campo = "arquivos", aceitos: string[] = ["pdf", "doc", "docx"]): Promise<ArquivoEnviado[]> {
+  const arquivos = form.getAll(campo).filter((f): f is File => f instanceof File && f.size > 0);
+  return Promise.all(arquivos.map((f) => validarArquivo(f, aceitos)));
+}
+
+async function validarArquivo(f: File, aceitos: string[]): Promise<ArquivoEnviado> {
   const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
   const mimeType = aceitos.includes(ext) ? TIPOS[ext] : undefined;
-  if (!mimeType) throw new ErroNegocio(`Envie um arquivo ${aceitos.map((a) => "." + a).join(", ")}.`);
-  if (f.size > TAMANHO_MAXIMO) throw new ErroNegocio("O arquivo deve ter no máximo 4 MB.");
+  if (!mimeType) throw new ErroNegocio(`"${f.name}": envie um arquivo ${aceitos.map((a) => "." + a).join(", ")}.`);
+  if (f.size > TAMANHO_MAXIMO) throw new ErroNegocio(`"${f.name}": o arquivo deve ter no máximo 4 MB.`);
   return { fileName: f.name.slice(0, 200), mimeType, size: f.size, data: new Uint8Array(await f.arrayBuffer()) };
 }
 

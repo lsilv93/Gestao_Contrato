@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useRef } from "react";
+import { startTransition, useActionState, useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { SimboloLK } from "./Logo";
 import type { Estado } from "@/actions/estado";
@@ -33,18 +33,60 @@ export function BotaoEnviar({
   );
 }
 
+/** Limite por arquivo (igual ao do servidor) e por envio (a Vercel recusa requisições acima de 4,5 MB). */
+export const MAX_ARQUIVO = 4 * 1024 * 1024;
+export const MAX_ENVIO = 4.4 * 1024 * 1024;
+const MB = (n: number) => `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+
+const falhaLocal = (mensagem: string): Estado => ({ ok: false, mensagem, ts: Date.now() });
+
+/** redirect() da server action não é erro: o roteador precisa recebê-lo. */
+const ehRedirecionamento = (e: unknown) =>
+  typeof e === "object" && e !== null && "digest" in e && String((e as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT");
+
+/** Arquivos grandes demais são barrados ANTES do envio (antes travavam a tela com erro 413). */
+export function validarArquivos(dados: FormData): string | null {
+  const arquivos = [...dados.values()].filter((v): v is File => v instanceof File && v.size > 0);
+  const grande = arquivos.find((f) => f.size > MAX_ARQUIVO);
+  if (grande) return `O arquivo "${grande.name}" tem ${MB(grande.size)}. O limite é 4 MB por arquivo — compacte o PDF e tente novamente.`;
+  const total = arquivos.reduce((a, f) => a + f.size, 0);
+  if (total > MAX_ENVIO) return `Os arquivos somam ${MB(total)}; o limite por envio é 4,4 MB.`;
+  return null;
+}
+
 /**
  * Executa a server action a partir do onSubmit (em vez de `<form action>`),
  * para que o React não limpe os campos quando a validação falhar.
+ * Qualquer falha (rede, servidor, arquivo recusado) vira mensagem no formulário:
+ * a tela nunca fica presa em "Salvando...".
  */
 export function useAcao(acao: Acao, confirmar?: string) {
-  const [estado, executar, enviando] = useActionState(acao, null);
+  const segura = useCallback(
+    async (anterior: Estado, dados: FormData): Promise<Estado> => {
+      try {
+        return await acao(anterior, dados);
+      } catch (e) {
+        if (ehRedirecionamento(e)) throw e;
+        console.error(e);
+        return falhaLocal("Não foi possível concluir o envio. Verifique a conexão e o tamanho do arquivo (máx. 4 MB) e tente novamente.");
+      }
+    },
+    [acao],
+  );
+  const [estadoServidor, executar, enviando] = useActionState(segura, null);
+  const [local, setLocal] = useState<Estado>(null);
   const aoEnviar = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (confirmar && !window.confirm(confirmar)) return;
+    if (enviando) return; // evita duplo envio
     const dados = new FormData(e.currentTarget);
+    const erro = validarArquivos(dados);
+    if (erro) return setLocal(falhaLocal(erro));
+    if (confirmar && !window.confirm(confirmar)) return;
+    setLocal(null);
     startTransition(() => executar(dados));
   };
+  // mostra a mensagem mais recente (validação local ou retorno do servidor)
+  const estado = local && (!estadoServidor || local.ts > estadoServidor.ts) ? local : estadoServidor;
   return { estado, enviando, aoEnviar };
 }
 
@@ -52,7 +94,7 @@ export function Mensagem({ estado }: { estado: Estado }) {
   if (!estado) return null;
   return (
     <div
-      role="status"
+      role={estado.ok ? "status" : "alert"}
       className={clsx(
         "flex items-start gap-2.5 px-4 py-3 text-[12px] font-medium",
         estado.ok ? "poco text-acento" : "poco-erro text-erro-claro",

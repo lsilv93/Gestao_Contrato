@@ -42,7 +42,7 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
   // Dados financeiros (valores de contratos e faturamento consolidado): somente ADM Geral.
   const admin = u.perfil === "ADMIN";
   const [financeiro, abertas, contratos, documentos, manuais] = await Promise.all([
-    admin ? carregarFinanceiro(escopo, mes, hoje) : null,
+    admin ? carregarFinanceiro(escopo, mes, hoje, f.mes) : null,
     // cobranças em aberto (sem valores) — visão de conferência de todos os perfis
     prisma.financialService.findMany({ where: { ...escopo, status: "PENDING" }, select: { dueDate: true } }),
     prisma.contract.findMany({
@@ -87,6 +87,8 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
     contratos: financeiro?.contratos ?? null,
     /** null para o Cliente / Transportador */
     faturamento: financeiro?.faturamento ?? null,
+    /** gráficos financeiros (null para o Cliente / Transportador) */
+    graficos: financeiro?.graficos ?? null,
     cobrancas: { aVencer: abertas.filter((s) => s.dueDate >= hoje).length, emAtraso: abertas.filter((s) => s.dueDate < hoje).length },
     alertas: {
       janelaDias: JANELA_ALERTA_DIAS,
@@ -94,7 +96,7 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
         farois: contar(contratos.map((c) => c.expirationDate)),
         itens: alertar(contratos, (c) => c.expirationDate).map((c) => ({ ...c, amount: Number(c.amount), farol: farol(c.expirationDate) })),
       },
-      /** Licença Sanitária & Regulatória */
+      /** Documentos Regulatórios */
       licencas: porCategoria("LICENCA"),
       /** Documentos Operacionais & Técnicos */
       documentos: porCategoria("DOCUMENTO"),
@@ -108,7 +110,7 @@ export async function carregarDashboard(u: UsuarioAtual, f: FiltroDashboard) {
 export type Dashboard = Awaited<ReturnType<typeof carregarDashboard>>;
 
 /** Métricas financeiras do dashboard (somente ADM Geral). */
-async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio: Date; fim: Date } | null, hoje: Date) {
+async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio: Date; fim: Date } | null, hoje: Date, mesTxt?: string) {
   const whereContratos: Prisma.ContractWhereInput = mes
     ? {
         ...escopo,
@@ -117,8 +119,14 @@ async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio:
         OR: [{ startDate: null }, { startDate: { lt: mes.fim } }],
       }
     : { ...escopo, status: "ACTIVE" };
-  // contratos e NFs em paralelo: duas consultas agregadas
-  const [porTipo, linhas] = await Promise.all([
+  // 12 meses terminando no mês filtrado (ou no mês atual)
+  const [anoRef, mesRef] = (mesTxt ?? diaDe(hoje).slice(0, 7)).split("-").map(Number);
+  const fimSerie = new Date(Date.UTC(anoRef, mesRef, 1));
+  const inicioSerie = new Date(Date.UTC(anoRef, mesRef - 12, 1));
+  const filtroCarrier = escopo.carrierId ? Prisma.sql`AND s."carrierId" = ${escopo.carrierId}` : Prisma.empty;
+
+  // contratos, NFs, série mensal e maiores devedores em paralelo (4 consultas agregadas)
+  const [porTipo, linhas, mensal, devedores] = await Promise.all([
     prisma.contract.groupBy({ by: ["contractType"], where: whereContratos, _sum: { amount: true }, _count: true }),
     // faturamento: tipo × status × vencida (datas como texto → ::date, sem depender do fuso da sessão)
     prisma.$queryRaw<{ tipo: "PJ" | "SPOT"; status: string; vencida: boolean; quantidade: number; valor: string | number }[]>`
@@ -129,7 +137,34 @@ async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio:
          ${escopo.carrierId ? Prisma.sql`AND "carrierId" = ${escopo.carrierId}` : Prisma.empty}
          ${mes ? Prisma.sql`AND "dueDate" >= ${diaDe(mes.inicio)}::date AND "dueDate" < ${diaDe(mes.fim)}::date` : Prisma.empty}
        GROUP BY 1, 2, 3`,
+    prisma.$queryRaw<{ mes: string; pago: string | null; aVencer: string | null; vencido: string | null }[]>`
+      SELECT to_char(date_trunc('month', s."dueDate"), 'YYYY-MM') AS mes,
+             SUM(s."amount") FILTER (WHERE s."status"::text = 'PAID') AS pago,
+             SUM(s."amount") FILTER (WHERE s."status"::text = 'PENDING' AND s."dueDate" >= ${diaDe(hoje)}::date) AS "aVencer",
+             SUM(s."amount") FILTER (WHERE s."status"::text = 'PENDING' AND s."dueDate" < ${diaDe(hoje)}::date) AS vencido
+        FROM "financial_services" s
+       WHERE s."status"::text IN ('PAID', 'PENDING')
+         AND s."dueDate" >= ${diaDe(inicioSerie)}::date AND s."dueDate" < ${diaDe(fimSerie)}::date
+         ${filtroCarrier}
+       GROUP BY 1`,
+    prisma.$queryRaw<{ id: string; nome: string; vencido: string | null; aVencer: string | null }[]>`
+      SELECT c."id", COALESCE(c."tradeName", c."legalName") AS nome,
+             SUM(s."amount") FILTER (WHERE s."dueDate" < ${diaDe(hoje)}::date) AS vencido,
+             SUM(s."amount") FILTER (WHERE s."dueDate" >= ${diaDe(hoje)}::date) AS "aVencer"
+        FROM "financial_services" s JOIN "carriers" c ON c."id" = s."carrierId"
+       WHERE s."status"::text = 'PENDING' ${filtroCarrier}
+       GROUP BY c."id", nome
+       ORDER BY SUM(s."amount") DESC
+       LIMIT 6`,
   ]);
+  const n = (v: string | number | null | undefined) => Number(v ?? 0);
+  const porMes = new Map(mensal.map((m) => [m.mes, m]));
+  const meses = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.UTC(anoRef, mesRef - 12 + i, 1));
+    const chave = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const m = porMes.get(chave);
+    return { mes: chave, pago: n(m?.pago), aVencer: n(m?.aVencer), vencido: n(m?.vencido) };
+  });
   const tipo = (t: "PJ" | "SPOT") => {
     const g = porTipo.find((p) => p.contractType === t);
     return { valor: Number(g?._sum.amount ?? 0), quantidade: g?._count ?? 0 };
@@ -148,6 +183,12 @@ async function carregarFinanceiro(escopo: { carrierId?: string }, mes: { inicio:
       quantidade: pj.quantidade + spot.quantidade,
       pj: { ...pj, percentual: totalContratos ? pj.valor / totalContratos : 0 },
       spot: { ...spot, percentual: totalContratos ? spot.valor / totalContratos : 0 },
+    },
+    graficos: {
+      /** faturamento por mês de vencimento (12 meses): recebido x a vencer x vencido */
+      mensal: meses,
+      /** transportadoras com mais valor em aberto */
+      devedores: devedores.map((d) => ({ id: d.id, nome: d.nome, vencido: n(d.vencido), aVencer: n(d.aVencer) })),
     },
     faturamento: {
       emitidas: somar(() => true),

@@ -34,7 +34,7 @@ export const lerFiltroLicencas = (sp: Params): FiltroLicencas => ({
 
 /**
  * Filtro de categoria. Registros sem tipo (anteriores à classificação) contam
- * como Licença Sanitária & Regulatória.
+ * como Documentos Regulatórios.
  */
 export function condicaoCategoria(c: CategoriaDocumento | undefined): Prisma.SanitaryLicenseWhereInput {
   if (!c) return {};

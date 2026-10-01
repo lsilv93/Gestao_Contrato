@@ -182,7 +182,7 @@ async function compliance(u: UsuarioAtual, f: FiltroRelatorio): Promise<Relatori
   const carriers = await prisma.carrier.findMany({
     where: escopoCarrierTabela(u, f),
     include: {
-      // Licença Sanitária & Regulatória; a vigente mais crítica (validade mais próxima) primeiro
+      // Documentos Regulatórios; a vigente mais crítica (validade mais próxima) primeiro
       licenses: { where: { next: { is: null }, ...condicaoCategoria("LICENCA") }, orderBy: { expirationDate: { sort: "asc", nulls: "last" } } },
       manuals: { orderBy: { createdAt: "desc" } },
     },
@@ -217,7 +217,7 @@ async function compliance(u: UsuarioAtual, f: FiltroRelatorio): Promise<Relatori
     colunas: [
       COL.transportadora,
       COL.cnpj,
-      { chave: "licenca", titulo: "Licença Sanitária / Regulatória", tipo: "texto", largura: 34 },
+      { chave: "licenca", titulo: "Documento Regulatório", tipo: "texto", largura: 34 },
       { chave: "statusLicenca", titulo: "Status da Licença", tipo: "status", largura: 18 },
       { chave: "validade", titulo: "Data de Validade", tipo: "data", largura: 16 },
       { chave: "diasValidade", titulo: "Dias p/ Vencer", tipo: "numero", largura: 14 },

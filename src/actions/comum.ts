@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { diaValido, paraData } from "@/lib/datas";
 import { cnpjValido, lerValor, normalizarCnpj } from "@/lib/formatos";
+import { PARAMS_MODAIS } from "@/lib/url";
 
 // ---------------- validações reutilizáveis (Zod) ----------------
 /** Texto opcional: string vazia vira null. */
@@ -98,7 +99,9 @@ export function concluir(form: FormData, base: string, mensagem: string, extra?:
   revalidatePath("/", "layout");
   const voltar = String(form.get("voltar") ?? "");
   const url = new URL(voltar.startsWith(base) ? voltar : base, "http://x");
-  for (const p of ["novo", "editar", "pagar", "renovar", "alterar", "ok"]) url.searchParams.delete(p);
+  // remove TODOS os parâmetros de modal: faltava "emitir", e o modal de emissão de NF
+  // reabria após salvar (e o "Fechar" voltava para a mesma URL — tela travada)
+  for (const p of PARAMS_MODAIS) url.searchParams.delete(p);
   url.searchParams.set("ok", mensagem);
   for (const [k, v] of Object.entries(extra ?? {})) url.searchParams.set(k, v);
   redirect(`${url.pathname}?${url.searchParams.toString()}`);

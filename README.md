@@ -43,10 +43,10 @@ Toda inclusão, edição ou exclusão grava, **na mesma transação**, um regist
 
 ### Licenças e Documentos (tipos, validade e renovação com histórico)
 - **Tipo de documento** (obrigatório, `enum DocumentType`, regras em `src/domain/tiposDocumento.ts`), agrupado em duas categorias:
-  - **Licença Sanitária & Regulatória:** CERTIDÃO DE REGULARIDADE (CRF), AFE COSMÉTICOS, AFE CORRELATOS, AFE MEDICAMENTOS, AFE SANEANTES, AE MEDICAMENTOS CONTROLADOS, CLI, AVCB, LICENÇA POLÍCIA FEDERAL e LICENÇA POLÍCIA CIVIL.
+  - **Documentos Regulatórios:** LICENÇA SANITÁRIA, CERTIDÃO DE REGULARIDADE (CRF), AFE COSMÉTICOS, AFE CORRELATOS, AFE MEDICAMENTOS, AFE SANEANTES, AE MEDICAMENTOS CONTROLADOS, CLI, AVCB, LICENÇA POLÍCIA FEDERAL e LICENÇA POLÍCIA CIVIL.
   - **Documentos Operacionais & Técnicos:** PGR, PCMSO, CERTIFICADO DE LIMPEZA DE CAIXA D’ÁGUA, CONTROLE DE PRAGAS EMPRESA e CONTROLE DE PRAGAS VEÍCULOS.
-- **Validade:** opcional para **AFE** e **AE** (vazia = *Sem Validade / Indeterminado*, fora dos faróis) e obrigatória para os demais tipos. A regra vale no formulário (o campo muda conforme o tipo), no servidor (Zod) e no banco (`CHECK sanitary_licenses_validade_obrigatoria`).
-- **Registros antigos** (cadastrados antes dos tipos) aparecem como *NÃO CLASSIFICADO*, contam como Licença Sanitária e pedem a classificação na próxima edição.
+- **Validade:** obrigatória para a **LICENÇA SANITÁRIA**; opcional para **AFE** e **AE** (vazia = *Sem Validade / Indeterminado*, fora dos faróis) e obrigatória para os demais tipos. A regra vale no formulário (o campo muda conforme o tipo), no servidor (Zod) e no banco (`CHECK sanitary_licenses_validade_obrigatoria`).
+- **Registros antigos** (cadastrados antes dos tipos) aparecem como *NÃO CLASSIFICADO*, contam como Documentos Regulatórios e pedem a classificação na próxima edição.
 - **Dashboard:** cards e painéis de alerta separados para as duas categorias, com contadores de vencidos, próximos de vencer, ativos e sem validade. A tela e o relatório também filtram por categoria e por tipo.
 - **Renovar:** a versão atual passa a *Renovada*, com o snapshot completo gravado no log, e é criada uma nova versão (`version + 1`, `previousId` apontando para a anterior) com o novo PDF e a nova validade. O PDF antigo continua no histórico.
 - **Alterar status / Encerrar** (Suspensa, Cancelada ou Encerrada): grava o histórico no log e **abre automaticamente** o modal de lançamento da nova licença (novo PDF + nova validade).
@@ -54,7 +54,8 @@ Toda inclusão, edição ou exclusão grava, **na mesma transação**, um regist
 - **Histórico de versões:** clique em `vN` na tabela (disponível também para o Cliente).
 
 ### Manuais & POPs
-PDF ou Word (.doc/.docx), versão obrigatória (ex.: v1.0, v2.1), sempre vinculado ao CNPJ da transportadora. Na edição é possível substituir o arquivo (o anterior é excluído) ou excluir o arquivo atual sem substituir — tudo auditado.
+PDF ou Word (.doc/.docx), versão obrigatória (ex.: v1.0, v2.1), sempre vinculado ao CNPJ da transportadora.
+- **Upload em lote:** no cadastro, selecione ou arraste vários arquivos de uma vez. Cada arquivo vira um documento com a mesma transportadora (CNPJ), categoria, versão e próxima revisão; o título é o nome do arquivo (ou "Título — nome do arquivo", se um título for informado). O navegador envia em pacotes de até 4 MB, abaixo do limite de 4,5 MB por requisição da Vercel, e o servidor (`cadastrarManuaisLote`) grava os arquivos de cada pacote numa transação, com AuditLog para cada arquivo e cada documento (mesmo identificador de lote). Na edição é possível substituir o arquivo (o anterior é excluído) ou excluir o arquivo atual sem substituir — tudo auditado.
 
 ### Serviços & Faturamento
 Tabela com filtros por número da NF, tipo de contrato, transportadora e status. **Quick action:** clique na linha de uma NF pendente, ou no botão **Pago**, para abrir a confirmação com a data de pagamento.
@@ -69,6 +70,8 @@ Cada contrato tem **Dia de emissão da NF**, **Dia de vencimento**, **Valor prev
 - O Cliente nunca vê pendências de emissão, só NFs já emitidas.
 
 ### Dashboard
+**Visão gerencial (ADM):** KPIs (Faturado, Recebido com % do faturado, A receber, Inadimplência com % do que está em aberto, Conformidade documental) e gráficos: faturamento mensal dos últimos 12 meses (recebido × a vencer × vencido), conformidade por área (contratos, documentos regulatórios, operacionais e manuais), maiores valores em aberto por transportadora e contratos PJ × SPOT. Todo gráfico tem dica ao passar o mouse ou focar pelo teclado, legenda e "Ver tabela" com os mesmos números. As cores foram validadas para daltonismo e contraste nos dois temas (`--viz-*` em `globals.css`). O Cliente vê só a conformidade dos próprios documentos, sem valores.
+
 Filtros **Mês/Ano** ou **Visão geral** e, para o administrador, **Transportadora**. Mostra o valor total de contratos com % e valores PJ x SPOT, as NFs emitidas, pagas, vencidas e pendentes (com totais em R$) e painéis de alerta de Contratos, Licenças (com a transportadora) e Manuais. Os contadores e os itens dos faróis abrem a listagem já filtrada.
 
 ### Inadimplência do Cliente (aviso e bloqueio)

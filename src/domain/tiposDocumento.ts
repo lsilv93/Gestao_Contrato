@@ -8,7 +8,7 @@ import type { DocumentType } from "@prisma/client";
 export type CategoriaDocumento = "LICENCA" | "DOCUMENTO";
 
 export const rotuloCategoriaDocumento: Record<CategoriaDocumento, string> = {
-  LICENCA: "Licença Sanitária & Regulatória",
+  LICENCA: "Documentos Regulatórios",
   DOCUMENTO: "Documentos Operacionais & Técnicos",
 };
 
@@ -16,6 +16,7 @@ type Definicao = { rotulo: string; categoria: CategoriaDocumento; validadeOpcion
 
 /** Ordem de exibição do dropdown (a mesma da especificação). */
 export const TIPOS_DOCUMENTO: Record<DocumentType, Definicao> = {
+  LICENCA_SANITARIA: { rotulo: "LICENÇA SANITÁRIA", categoria: "LICENCA", validadeOpcional: false },
   CRF: { rotulo: "CERTIDÃO DE REGULARIDADE (CRF)", categoria: "LICENCA", validadeOpcional: false },
   AFE_COSMETICOS: { rotulo: "AFE COSMÉTICOS", categoria: "LICENCA", validadeOpcional: true },
   AFE_CORRELATOS: { rotulo: "AFE CORRELATOS", categoria: "LICENCA", validadeOpcional: true },

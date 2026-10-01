@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { formatarNumero } from "@/lib/formatos";
 import { History, Plus } from "lucide-react";
-import { excluirManual, salvarManual } from "@/actions/manuais";
+import { cadastrarManuaisLote, excluirManual, salvarManual } from "@/actions/manuais";
+import { FormLoteArquivos } from "@/components/FormLoteArquivos";
 import { BotaoEditar, BotaoExcluir } from "@/components/Acoes";
 import { AreaTexto, Campo, CampoArquivo, LinkArquivo, Selecao, Voltar } from "@/components/Campos";
 import { FormFiltro } from "@/components/Filtros";
@@ -124,26 +125,52 @@ export default async function ManuaisPage({ searchParams }: { searchParams: Prom
         <Paginacao base={BASE} sp={sp} {...pag} />
       </Painel>
 
-      {(novo || editando) && (
-        <Modal titulo={editando ? `Editar ${editando.title}` : "Novo manual / POP"} descricao={editando ? "Atualize os dados, substitua o arquivo ou exclua o arquivo atual. Toda alteração fica na trilha de auditoria." : "Anexe o PDF ou Word e informe a versão. O documento fica vinculado ao CNPJ da transportadora."} fecharHref={aqui} largo>
-          <FormAcao acao={salvarManual} botao={editando ? "Salvar alterações" : "Cadastrar documento"} limpar={false} className="grid gap-4 sm:grid-cols-2">
-            {editando && <input type="hidden" name="id" value={editando.id} />}
+      {/* cadastro: vários arquivos de uma vez, todos com os mesmos dados */}
+      {novo && (
+        <Modal
+          titulo="Novo manual / POP"
+          descricao="Selecione ou arraste um ou vários PDFs/Word. Cada arquivo vira um documento com a transportadora (CNPJ), categoria, versão e próxima revisão abaixo. Tudo fica na trilha de auditoria."
+          fecharHref={aqui}
+          largo
+        >
+          <FormLoteArquivos acao={cadastrarManuaisLote} sucessoHref={aqui}>
+            <Selecao nome="carrierId" rotulo="Transportadora" valor={filtro.carrierId} obrigatorio vazio="Selecione..." opcoes={opcoesSelect(transportadoras)} className="sm:col-span-2" />
+            <Campo
+              nome="title"
+              rotulo="Título"
+              maxLength={200}
+              className="sm:col-span-2"
+              placeholder="Ex.: Manual de Boas Práticas de Transporte de Medicamentos"
+              ajuda="Opcional. Vazio: cada documento recebe o nome do próprio arquivo. Com vários arquivos, o título vira prefixo (Título — nome do arquivo)."
+            />
+            <Selecao nome="category" rotulo="Categoria" valor="MANUAL_BPA" obrigatorio opcoes={categorias} />
+            <Campo nome="version" rotulo="Versão" obrigatorio maxLength={30} placeholder="Ex.: v1.0, v2.1" />
+            <Campo nome="reviewDate" rotulo="Próxima revisão (validade)" type="date" ajuda="Usada pelo farol de vencimento." className="sm:col-span-2" />
+            <AreaTexto nome="notes" rotulo="Observações" className="sm:col-span-2" />
+          </FormLoteArquivos>
+        </Modal>
+      )}
+
+      {editando && (
+        <Modal titulo={`Editar ${editando.title}`} descricao="Atualize os dados, substitua o arquivo ou exclua o arquivo atual. Toda alteração fica na trilha de auditoria." fecharHref={aqui} largo>
+          <FormAcao acao={salvarManual} botao="Salvar alterações" limpar={false} className="grid gap-4 sm:grid-cols-2">
+            <input type="hidden" name="id" value={editando.id} />
             <Voltar href={aqui} />
-            <Selecao nome="carrierId" rotulo="Transportadora" valor={editando?.carrierId ?? filtro.carrierId} obrigatorio vazio="Selecione..." opcoes={opcoesSelect(transportadoras)} className="sm:col-span-2" />
-            <Campo nome="title" rotulo="Título" valor={editando?.title} obrigatorio maxLength={200} className="sm:col-span-2" placeholder="Ex.: Manual de Boas Práticas de Transporte de Medicamentos" />
-            <Selecao nome="category" rotulo="Categoria" valor={editando?.category ?? "MANUAL_BPA"} obrigatorio opcoes={categorias} />
-            <Campo nome="version" rotulo="Versão" valor={editando?.version} obrigatorio maxLength={30} placeholder="Ex.: v1.0, v2.1" />
-            <Campo nome="reviewDate" rotulo="Próxima revisão" type="date" valor={editando?.reviewDate ? diaDe(editando.reviewDate) : ""} ajuda="Usada pelo farol de vencimento." />
+            <Selecao nome="carrierId" rotulo="Transportadora" valor={editando.carrierId} obrigatorio vazio="Selecione..." opcoes={opcoesSelect(transportadoras)} className="sm:col-span-2" />
+            <Campo nome="title" rotulo="Título" valor={editando.title} obrigatorio maxLength={200} className="sm:col-span-2" />
+            <Selecao nome="category" rotulo="Categoria" valor={editando.category} obrigatorio opcoes={categorias} />
+            <Campo nome="version" rotulo="Versão" valor={editando.version} obrigatorio maxLength={30} placeholder="Ex.: v1.0, v2.1" />
+            <Campo nome="reviewDate" rotulo="Próxima revisão" type="date" valor={editando.reviewDate ? diaDe(editando.reviewDate) : ""} ajuda="Usada pelo farol de vencimento." />
             <div>
-              <CampoArquivo obrigatorio={!editando} atual={editando?.file} rotulo={editando ? "Substituir arquivo (PDF ou Word, até 4 MB)" : undefined} />
-              {editando?.file && (
+              <CampoArquivo atual={editando.file} rotulo="Substituir arquivo (PDF ou Word, até 4 MB)" />
+              {editando.file && (
                 <label className="poco mt-3 flex cursor-pointer items-center gap-3 px-4 py-3">
                   <input type="checkbox" name="removerArquivo" />
                   <span className="text-[12px] text-t2">Excluir o arquivo atual sem substituir</span>
                 </label>
               )}
             </div>
-            <AreaTexto nome="notes" rotulo="Observações" valor={editando?.notes} className="sm:col-span-2" />
+            <AreaTexto nome="notes" rotulo="Observações" valor={editando.notes} className="sm:col-span-2" />
           </FormAcao>
         </Modal>
       )}

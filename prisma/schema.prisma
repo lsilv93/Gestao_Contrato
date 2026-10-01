@@ -54,6 +54,7 @@ enum LicenseStatus {
 /// Tipos do módulo "Licenças e Documentos". Categoria e obrigatoriedade da
 /// validade ficam em src/domain/tiposDocumento.ts (AFE/AE: validade opcional).
 enum DocumentType {
+  LICENCA_SANITARIA            // Licença Sanitária (validade obrigatória)
   CRF                          // Certidão de Regularidade (CRF)
   AFE_COSMETICOS
   AFE_CORRELATOS

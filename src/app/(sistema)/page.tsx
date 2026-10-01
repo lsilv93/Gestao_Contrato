@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, BadgeCheck, FileUp, FileWarning, BookOpenCheck, CircleDollarSign, Clock3, ClipboardList, FileSignature, Infinity as Indeterminado, ReceiptText, ShieldPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, BarChart3, FileUp, FileWarning, BookOpenCheck, Clock3, ClipboardList, FileSignature, Infinity as Indeterminado, ShieldPlus } from "lucide-react";
+import { BarrasEmpilhadas, ColunasEmpilhadas, COR, Medidor, type Serie } from "@/components/graficos/Graficos";
 import { rotuloCategoriaDocumento, rotuloTipoDocumento, type CategoriaDocumento } from "@/domain/tiposDocumento";
 import { FormFiltro } from "@/components/Filtros";
 import { FiltroTransportadora } from "@/components/FiltroTransportadora";
-import { Barra, Cabecalho, ContadoresFarol, FarolBadge, Indicador, LegendaFarol, Painel, Vazio } from "@/components/ui";
+import { Cabecalho, ContadoresFarol, FarolBadge, Indicador, LegendaFarol, Painel, Vazio } from "@/components/ui";
 import type { Farol } from "@/domain/farol";
 import { textoPrazo } from "@/domain/farol";
 import { rotuloCategoriaManual, rotuloSituacaoLicenca } from "@/domain/status";
@@ -67,16 +68,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </FormFiltro>
       )}
 
-      {d.contratos && d.faturamento ? (
-        <Financeiro contratos={d.contratos} faturamento={d.faturamento} filtroMes={!!filtro.mes} periodo={periodo} comTransp={comTransp} />
+      {d.contratos && d.faturamento && d.graficos ? (
+        <Gerencial d={d} contratos={d.contratos} faturamento={d.faturamento} graficos={d.graficos} filtroMes={filtro.mes} periodo={periodo} comTransp={comTransp} />
       ) : (
         <>
-          {/* Cliente / Transportador: só a conferência de cobranças em aberto, sem valores */}
-          <h2 className="secao mb-3">Cobranças em aberto</h2>
-          <div className="mb-8 grid gap-4 sm:grid-cols-2">
-            <Indicador titulo="Em atraso" valor={formatarNumero(d.cobrancas.emAtraso)} detalhe="NFs vencidas aguardando pagamento" icone={<AlertTriangle className="h-5 w-5" />} cor="erro" href="/faturamento?status=OVERDUE" />
-            <Indicador titulo="A vencer" valor={formatarNumero(d.cobrancas.aVencer)} detalhe="NFs em aberto dentro do prazo" icone={<Clock3 className="h-5 w-5" />} cor="ouro" href="/faturamento?status=PENDING" />
+          {/* Cliente / Transportador: cobranças em aberto (sem valores) + conformidade dos documentos */}
+          <h2 className="secao mb-3">Resumo — situação hoje</h2>
+          <div className="mb-6 grid gap-4 sm:grid-cols-3">
+            <Indicador titulo="Cobranças em atraso" valor={formatarNumero(d.cobrancas.emAtraso)} detalhe="NFs vencidas aguardando pagamento" icone={<AlertTriangle className="h-5 w-5" />} cor="erro" href="/faturamento?status=OVERDUE" />
+            <Indicador titulo="Cobranças a vencer" valor={formatarNumero(d.cobrancas.aVencer)} detalhe="NFs em aberto dentro do prazo" icone={<Clock3 className="h-5 w-5" />} cor="ouro" href="/faturamento?status=PENDING" />
+            <TileConformidade d={d} />
           </div>
+          <Painel titulo={<><ShieldPlus className="h-4 w-4 text-acento" /> Conformidade dos seus documentos</>} className="mb-8">
+            <GraficoConformidade d={d} comTransp={comTransp} />
+          </Painel>
         </>
       )}
 
@@ -250,70 +255,186 @@ function PainelAlerta({
   );
 }
 
-/** Métricas financeiras: valores de contratos e faturamento consolidado (somente ADM Geral). */
-function Financeiro({
+// ---------------- painel gerencial ----------------
+const SERIES_FATURAMENTO: Serie[] = [
+  { chave: "pago", rotulo: "Recebido", cor: COR.ok },
+  { chave: "aVencer", rotulo: "A vencer", cor: COR.alerta },
+  { chave: "vencido", rotulo: "Vencido", cor: COR.critico },
+];
+const SERIES_CONFORMIDADE: Serie[] = [
+  { chave: "vencido", rotulo: "Vencido", cor: COR.critico },
+  { chave: "critico", rotulo: "Vence hoje/amanhã", cor: COR.alerta },
+  { chave: "emDia", rotulo: "Em dia", cor: COR.ok },
+];
+const SERIES_ABERTO: Serie[] = [
+  { chave: "vencido", rotulo: "Vencido", cor: COR.critico },
+  { chave: "aVencer", rotulo: "A vencer", cor: COR.alerta },
+];
+const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const moedaCurta = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 });
+const eixoMoeda = (n: number) => (n ? moedaCurta.format(n) : "R$ 0");
+
+/** Linhas do gráfico de conformidade (contagens de itens vigentes por farol). */
+function linhasConformidade(d: Dashboard, comTransp: (base: string, extra: Record<string, string>) => string) {
+  const linha = (chave: string, rotulo: string, f: Record<Farol, number>, href: string, semValidade = 0) => ({
+    chave,
+    rotulo,
+    sub: semValidade ? `+${semValidade} sem validade (em dia)` : undefined,
+    valores: [f.VERMELHO, f.AMARELO, f.VERDE + semValidade],
+    href,
+  });
+  return [
+    linha("contratos", "Contratos", d.alertas.contratos.farois, comTransp("/contratos", { status: "ACTIVE" })),
+    linha("regulatorios", rotuloCategoriaDocumento.LICENCA, d.alertas.licencas.farois, comTransp("/licencas", { categoria: "LICENCA" }), d.alertas.licencas.semValidade),
+    linha("operacionais", rotuloCategoriaDocumento.DOCUMENTO, d.alertas.documentos.farois, comTransp("/licencas", { categoria: "DOCUMENTO" })),
+    linha("manuais", "Manuais & POPs", d.alertas.manuais.farois, comTransp("/manuais", {})),
+  ];
+}
+
+function indiceConformidade(d: Dashboard) {
+  const linhas = linhasConformidade(d, (b) => b);
+  const total = linhas.reduce((a, l) => a + l.valores.reduce((x, y) => x + y, 0), 0);
+  const emDia = linhas.reduce((a, l) => a + l.valores[2], 0);
+  const vencidos = linhas.reduce((a, l) => a + l.valores[0], 0);
+  return { total, emDia, vencidos, pct: total ? emDia / total : 1 };
+}
+
+function GraficoConformidade({ d, comTransp }: { d: Dashboard; comTransp: (base: string, extra: Record<string, string>) => string }) {
+  return (
+    <BarrasEmpilhadas
+      linhas={linhasConformidade(d, comTransp)}
+      series={SERIES_CONFORMIDADE}
+      formatar={formatarNumero}
+      resumo={(v, total) => `${total} · ${Math.round((v[2] / total) * 100)}% em dia`}
+      vazio="Nenhum item com validade"
+    />
+  );
+}
+
+/** Tile de KPI do resumo gerencial: valor em fonte proporcional (não quebra), medidor opcional. */
+function Kpi({ titulo, valor, detalhe, href, medidor }: { titulo: string; valor: string; detalhe: string; href: string; medidor?: { valor: number; cor?: string; rotulo: string } }) {
+  return (
+    <Link href={href} className="card-sm block min-w-0 p-5">
+      <p className="label !mb-1">{titulo}</p>
+      <p className="whitespace-nowrap text-[clamp(17px,1.5vw,21px)] font-semibold leading-tight text-t1">{valor}</p>
+      {medidor && <Medidor {...medidor} />}
+      <p className="mt-2 text-[11px] leading-snug text-t3">{detalhe}</p>
+    </Link>
+  );
+}
+
+function TileConformidade({ d }: { d: Dashboard }) {
+  const c = indiceConformidade(d);
+  return (
+    <div className="card-sm min-w-0 p-5">
+      <p className="label !mb-1">Conformidade documental</p>
+      <p className="whitespace-nowrap text-[clamp(17px,1.5vw,21px)] font-semibold leading-tight text-t1">{formatarPercentual(c.pct)}</p>
+      <Medidor valor={c.pct} cor={c.pct >= 0.9 ? COR.ok : c.pct >= 0.7 ? COR.alerta : COR.critico} rotulo="Itens em dia" />
+      <p className="mt-2 text-[11px] text-t3">
+        {formatarNumero(c.emDia)} de {formatarNumero(c.total)} itens em dia{c.vencidos ? ` · ${c.vencidos} vencido(s)` : ""}
+      </p>
+    </div>
+  );
+}
+
+/** Visão gerencial do ADM Geral: KPIs, gráficos de faturamento, conformidade e carteira em aberto. */
+function Gerencial({
+  d,
   contratos,
   faturamento: f,
+  graficos: g,
   filtroMes,
   periodo,
   comTransp,
 }: {
+  d: Dashboard;
   contratos: NonNullable<Dashboard["contratos"]>;
   faturamento: NonNullable<Dashboard["faturamento"]>;
-  filtroMes: boolean;
+  graficos: NonNullable<Dashboard["graficos"]>;
+  filtroMes?: string;
   periodo: string;
   comTransp: (base: string, extra: Record<string, string>) => string;
 }) {
+  const aberto = f.pendentes.valor + f.vencidas.valor;
+  const recebidoPct = f.emitidas.valor ? f.pagas.valor / f.emitidas.valor : 0;
+  const inadimplencia = aberto ? f.vencidas.valor / aberto : 0;
+  const categorias = g.mensal.map((m, i) => {
+    const [a, mm] = m.mes.split("-").map(Number);
+    return { chave: m.mes, rotulo: MESES[mm - 1], ano: i === 0 || mm === 1 ? String(a) : undefined, detalhe: rotuloMes(m.mes) };
+  });
   return (
     <>
-      <h2 className="secao mb-3">Contratos {filtroMes ? `vigentes em ${periodo}` : "vigentes"}</h2>
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Indicador titulo="Valor total de contratos" valor={formatarMoeda(contratos.total)} detalhe={`${formatarNumero(contratos.quantidade)} contrato(s)`} icone={<CircleDollarSign className="h-5 w-5" />} href={comTransp("/contratos", { status: "ACTIVE" })} />
-        <Indicador titulo="Contratos PJ" valor={formatarMoeda(contratos.pj.valor)} detalhe={`${formatarPercentual(contratos.pj.percentual)} do total · ${contratos.pj.quantidade} contrato(s)`} icone={<FileSignature className="h-5 w-5" />} href={comTransp("/contratos", { tipo: "PJ" })} />
-        <Indicador titulo="Contratos SPOT" valor={formatarMoeda(contratos.spot.valor)} detalhe={`${formatarPercentual(contratos.spot.percentual)} do total · ${contratos.spot.quantidade} contrato(s)`} icone={<FileSignature className="h-5 w-5" />} cor="ouro" href={comTransp("/contratos", { tipo: "SPOT" })} />
-        <div className="card-sm flex flex-col justify-center gap-3 p-5">
-          <p className="label !mb-0">PJ x SPOT</p>
-          <Barra
-            partes={[
-              { rotulo: "PJ", valor: contratos.pj.valor, classe: "bg-acento" },
-              { rotulo: "SPOT", valor: contratos.spot.valor, classe: "bg-ouro" },
-            ]}
+      {/* ---------------- KPIs ---------------- */}
+      <h2 className="secao mb-3">Resumo gerencial {filtroMes ? `— NFs com vencimento em ${periodo}` : "— todas as NFs"}</h2>
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Kpi titulo="Faturado" valor={formatarMoeda(f.emitidas.valor)} detalhe={`${formatarNumero(f.emitidas.quantidade)} NF(s) emitida(s)`} href={comTransp("/faturamento", {})} />
+        <Kpi
+          titulo="Recebido"
+          valor={formatarMoeda(f.pagas.valor)}
+          medidor={{ valor: recebidoPct, rotulo: "Recebido sobre o faturado" }}
+          detalhe={`${formatarPercentual(recebidoPct)} do faturado · ${formatarNumero(f.pagas.quantidade)} NF(s)`}
+          href={comTransp("/faturamento", { status: "PAID" })}
+        />
+        <Kpi titulo="A receber" valor={formatarMoeda(f.pendentes.valor)} detalhe={`${formatarNumero(f.pendentes.quantidade)} NF(s) dentro do prazo`} href={comTransp("/faturamento", { status: "PENDING" })} />
+        <Kpi
+          titulo="Inadimplência"
+          valor={formatarMoeda(f.vencidas.valor)}
+          medidor={{ valor: inadimplencia, cor: COR.critico, rotulo: "Vencido sobre o total em aberto" }}
+          detalhe={`${formatarPercentual(inadimplencia)} do que está em aberto · ${formatarNumero(f.vencidas.quantidade)} NF(s)`}
+          href={comTransp("/faturamento", { status: "OVERDUE" })}
+        />
+        <TileConformidade d={d} />
+      </div>
+
+      {/* ---------------- gráficos ---------------- */}
+      <div className="mb-6 grid gap-6 lg:grid-cols-5">
+        <Painel titulo={<><BarChart3 className="h-4 w-4 text-acento" /> Faturamento mensal — últimos 12 meses</>} className="lg:col-span-3">
+          <p className="-mt-2 mb-3 text-[11px] text-t3">Valor das NFs por mês de vencimento e situação do pagamento.</p>
+          <ColunasEmpilhadas
+            categorias={categorias}
+            series={SERIES_FATURAMENTO}
+            valores={g.mensal.map((m) => [m.pago, m.aVencer, m.vencido])}
+            formatar={formatarMoeda}
+            formatarEixo={eixoMoeda}
+            destaque={g.mensal.length - 1}
           />
-          <div className="flex justify-between text-[11px] text-t3">
-            <span className="inline-flex items-center gap-1.5"><span className="ponto text-acento" /> PJ {formatarPercentual(contratos.pj.percentual)}</span>
-            <span className="inline-flex items-center gap-1.5"><span className="ponto text-ouro" /> SPOT {formatarPercentual(contratos.spot.percentual)}</span>
+        </Painel>
+        <Painel titulo={<><ShieldPlus className="h-4 w-4 text-acento" /> Conformidade por área</>} className="lg:col-span-2">
+          <p className="-mt-2 mb-3 text-[11px] text-t3">Itens vigentes por situação de validade. Clique numa área para ver a lista.</p>
+          <GraficoConformidade d={d} comTransp={comTransp} />
+        </Painel>
+        <Painel titulo={<><AlertTriangle className="h-4 w-4 text-acento" /> Maiores valores em aberto por transportadora</>} className="lg:col-span-3">
+          {g.devedores.length === 0 ? (
+            <Vazio>Nenhuma NF em aberto.</Vazio>
+          ) : (
+            <BarrasEmpilhadas
+              modo="valor"
+              linhas={g.devedores.map((x) => ({ chave: x.id, rotulo: x.nome, valores: [x.vencido, x.aVencer], href: urlCom("/faturamento", { transportadora: x.id }) }))}
+              series={SERIES_ABERTO}
+              formatar={formatarMoeda}
+            />
+          )}
+        </Painel>
+        <Painel titulo={<><FileSignature className="h-4 w-4 text-acento" /> Contratos {filtroMes ? `vigentes em ${periodo}` : "vigentes"}</>} className="lg:col-span-2">
+          <Link href={comTransp("/contratos", { status: "ACTIVE" })} className="block">
+            <p className="label !mb-1">Valor total</p>
+            <p className="text-[24px] font-semibold leading-tight text-t1">{formatarMoeda(contratos.total)}</p>
+            <p className="mt-1 text-[11px] text-t3">{formatarNumero(contratos.quantidade)} contrato(s)</p>
+          </Link>
+          <div className="mt-5">
+            <BarrasEmpilhadas
+              modo="valor"
+              linhas={[
+                { chave: "PJ", rotulo: "PJ", sub: `${contratos.pj.quantidade} contrato(s)`, valores: [contratos.pj.valor], href: comTransp("/contratos", { tipo: "PJ" }) },
+                { chave: "SPOT", rotulo: "SPOT", sub: `${contratos.spot.quantidade} contrato(s)`, valores: [contratos.spot.valor], href: comTransp("/contratos", { tipo: "SPOT" }) },
+              ]}
+              series={[{ chave: "valor", rotulo: "Valor dos contratos", cor: COR.serie }]}
+              formatar={formatarMoeda}
+              resumo={(_, total) => `${formatarMoeda(total)} · ${formatarPercentual(contratos.total ? total / contratos.total : 0)}`}
+            />
           </div>
-        </div>
+        </Painel>
       </div>
-
-      {/* ---------------- métricas de faturamento ---------------- */}
-      <h2 className="secao mb-3">Faturamento {filtroMes ? `— NFs com vencimento em ${periodo}` : "— todas as NFs"}</h2>
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Indicador titulo="NFs emitidas" valor={formatarNumero(f.emitidas.quantidade)} detalhe={formatarMoeda(f.emitidas.valor)} icone={<ReceiptText className="h-5 w-5" />} cor="neutro" href={comTransp("/faturamento", {})} />
-        <Indicador titulo="Pagas" valor={formatarNumero(f.pagas.quantidade)} detalhe={formatarMoeda(f.pagas.valor)} icone={<BadgeCheck className="h-5 w-5" />} cor="ok" href={comTransp("/faturamento", { status: "PAID" })} />
-        <Indicador titulo="Vencidas" valor={formatarNumero(f.vencidas.quantidade)} detalhe={formatarMoeda(f.vencidas.valor)} icone={<AlertTriangle className="h-5 w-5" />} cor="erro" href={comTransp("/faturamento", { status: "OVERDUE" })} />
-        <Indicador titulo="Pendentes (a vencer)" valor={formatarNumero(f.pendentes.quantidade)} detalhe={formatarMoeda(f.pendentes.valor)} icone={<Clock3 className="h-5 w-5" />} cor="ouro" href={comTransp("/faturamento", { status: "PENDING" })} />
-      </div>
-      <div className="mb-8 grid gap-4 sm:grid-cols-2">
-        {(["PJ", "SPOT"] as const).map((t) => {
-          const v = t === "PJ" ? f.pj : f.spot;
-          const pct = f.emitidas.valor ? v.valor / f.emitidas.valor : 0;
-          return (
-            <Link key={t} href={comTransp("/faturamento", { tipo: t })} className="card-sm flex items-center justify-between gap-4 p-5">
-              <div>
-                <p className="label !mb-1">Faturamento {t}</p>
-                <p className="num text-[18px] font-semibold text-t1">{formatarMoeda(v.valor)}</p>
-              </div>
-              <p className="text-right text-[11px] text-t3">
-                {formatarNumero(v.quantidade)} NF(s)
-                <br />
-                {formatarPercentual(pct)} do faturado
-              </p>
-            </Link>
-          );
-        })}
-      </div>
-
     </>
   );
 }
